@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Foros — IDEA Blog{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+  <h1 style="font-size:20px;font-weight:700;margin:0">💬 Foros</h1>
+  <div style="margin-left:auto;display:flex;gap:8px">
+    <a href="{{ url_for('forums', sort='recent') }}"
+       class="tab-btn {{ 'active' if sort == 'recent' else '' }}">Recientes</a>
+    <a href="{{ url_for('forums', sort='votes') }}"
+       class="tab-btn {{ 'active' if sort == 'votes' else '' }}">Más votados</a>
+    <a href="{{ url_for('forums', sort='solved') }}"
+       class="tab-btn {{ 'active' if sort == 'solved' else '' }}">✓ Resueltos</a>
+  </div>
+</div>
+
+<div style="margin-bottom:16px">
+  {% if session.user %}
+  <button class="btn-primary btn-sm" onclick="openModal('loginModal')" disabled title="Función próximamente">
+    + Nueva pregunta
+  </button>
+  {% else %}
+  <button class="btn-ghost btn-sm" onclick="requireAuth('para publicar en los foros')">
+    Únete para preguntar
+  </button>
+  {% endif %}
+</div>
+
+{% if forums %}
+  {% for f in forums %}
+  {% set c = get_cat(f.category) %}
+  <a href="{{ url_for('forum_detail', forum_id=f.id) }}"
+     class="card card-hover forum-card">
+    <div class="vote-box">
+      <div class="vote-count">{{ f.votes }}</div>
+      <div class="vote-label">votos</div>
+    </div>
+    <div class="forum-info">
+      <div class="forum-title">
+        {% if f.solved %}
+        <span style="color:#0f766e;font-size:13px;margin-right:6px">✓</span>
+        {% endif %}
+        {{ f.title }}
+      </div>
+      <div class="forum-meta">
+        <span class="cat-pill" style="color:{{ c.color }};background:{{ c.bg }};font-size:11px">{{ c.emoji }} {{ c.label }}</span>
+        💬 {{ f.answers }} respuestas · 👁 {{ "{:,}".format(f.views) }} vistas
+        {% if f.solved %} · <span style="color:#0f766e;font-weight:600">Resuelto</span>{% endif %}
+      </div>
+      <div class="tags-row" style="margin-top:6px">
+        {% for tag in f.tags %}
+        <span class="tag-chip">#{{ tag }}</span>
+        {% endfor %}
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <div style="font-size:40px;margin-bottom:12px">💬</div>
+    <p>No hay preguntas en esta categoría todavía.</p>
+    <a href="{{ url_for('forums') }}" class="btn-ghost btn-sm" style="margin-top:10px">Ver todas</a>
+  </div>
+{% endif %}
+{% endblock %}

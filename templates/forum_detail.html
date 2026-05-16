@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}{{ forum.title }} — Foros IDEA{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:16px">
+  <a href="{{ url_for('forums') }}" class="btn-ghost btn-sm">← Volver a foros</a>
+</div>
+
+{% set c = get_cat(forum.category) %}
+
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;align-items:flex-start;gap:16px">
+    <div class="vote-box" style="min-width:56px;text-align:center">
+      <div class="vote-count" style="font-size:22px">{{ forum.votes }}</div>
+      <div class="vote-label">votos</div>
+    </div>
+    <div style="flex:1">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <span class="cat-pill" style="color:{{ c.color }};background:{{ c.bg }}">{{ c.emoji }} {{ c.label }}</span>
+        {% if forum.solved %}
+        <span style="color:#0f766e;font-weight:600;font-size:13px">✓ Resuelto</span>
+        {% endif %}
+      </div>
+      <h1 style="font-size:18px;font-weight:700;margin:0 0 10px">{{ forum.title }}</h1>
+      <div class="tags-row" style="margin-bottom:12px">
+        {% for tag in forum.tags %}
+        <span class="tag-chip">#{{ tag }}</span>
+        {% endfor %}
+      </div>
+      <p style="color:var(--text2);font-size:14px;line-height:1.6;margin:0">
+        Esta es una discusión activa de la comunidad IDEA. Participa aportando tu perspectiva
+        y experiencia técnica.
+      </p>
+      <div class="meta" style="margin-top:12px">
+        <div class="avatar avatar-sm" style="background:{{ c.color }}">U</div>
+        <span style="font-size:13px">Comunidad IDEA · 💬 {{ forum.answers }} respuestas · 👁 {{ "{:,}".format(forum.views) }} vistas</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Respuestas placeholder -->
+<h2 style="font-size:15px;font-weight:700;margin-bottom:12px">{{ forum.answers }} Respuestas</h2>
+
+{% for i in range([forum.answers, 3]|min) %}
+{% set colors = ['#1d4ed8','#15803d','#b45309'] %}
+{% set inits  = ['AN', 'ML', 'JP'] %}
+{% set names  = ['Ana Núñez', 'Marco López', 'Juan P.'] %}
+<div class="card" style="margin-bottom:12px">
+  <div style="display:flex;gap:14px">
+    <div style="text-align:center;min-width:48px">
+      <div style="font-size:18px;font-weight:700;color:var(--accent)">{{ (i+1)*7 + 3 }}</div>
+      <div style="font-size:11px;color:var(--text3)">votos</div>
+      {% if i == 0 and forum.solved %}
+      <div style="color:#0f766e;font-size:18px;margin-top:4px" title="Respuesta aceptada">✓</div>
+      {% endif %}
+    </div>
+    <div style="flex:1">
+      <p style="color:var(--text2);font-size:14px;line-height:1.6;margin:0 0 10px">
+        {% if i == 0 %}
+        Esta es una excelente pregunta. La solución más efectiva que he encontrado involucra
+        revisar la configuración base y aplicar las mejores prácticas del sector.
+        La clave está en entender el contexto antes de implementar cualquier cambio.
+        {% elif i == 1 %}
+        Complementando la respuesta anterior: también vale la pena considerar el impacto
+        en el rendimiento. En mis proyectos he visto mejoras significativas al optimizar
+        este aspecto específico del flujo de trabajo.
+        {% else %}
+        Comparto recursos adicionales que me ayudaron con este problema. La documentación
+        oficial tiene ejemplos muy claros y hay tutoriales de la comunidad que explican
+        los casos borde más comunes.
+        {% endif %}
+      </p>
+      <div class="meta">
+        <div class="avatar avatar-sm" style="background:{{ colors[i] }}">{{ inits[i] }}</div>
+        <span style="font-size:12px;color:var(--text3)">{{ names[i] }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<!-- Responder -->
+<div class="card" style="margin-top:20px;padding:16px">
+  <h3 style="font-size:14px;font-weight:700;margin:0 0 12px">Tu respuesta</h3>
+  {% if session.user %}
+  <textarea class="search-input" rows="4" placeholder="Escribe tu respuesta…"
+            style="width:100%;resize:vertical;font-family:inherit;margin-bottom:10px"></textarea>
+  <div style="display:flex;gap:8px">
+    <button class="btn-primary btn-sm" onclick="showToast('Función próximamente disponible')">Publicar respuesta</button>
+    <a href="{{ url_for('ai_hub', text=forum.title) }}"
+       class="btn-ghost btn-sm">✦ Ayuda con IA</a>
+  </div>
+  {% else %}
+  <div style="color:var(--text3);font-size:13px">
+    <a href="#" onclick="requireAuth('para responder en los foros')" style="color:var(--accent)">Únete gratis</a>
+    para responder en los foros.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Artículos — IDEA Blog{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+  <h1 style="font-size:20px;font-weight:700;margin:0">📰 Artículos</h1>
+  <a href="{{ url_for('articles') }}"
+     class="filter-pill {{ 'active' if cat == 'all' else '' }}">📋 Todos</a>
+  {% for c in categories %}
+  <a href="{{ url_for('articles', cat=c.id, q=q) }}"
+     class="filter-pill {{ 'active' if cat == c.id else '' }}">{{ c.emoji }} {{ c.label }}</a>
+  {% endfor %}
+</div>
+
+<!-- Search bar -->
+<form method="get" action="{{ url_for('articles') }}" style="margin-bottom:18px;display:flex;gap:8px">
+  <input type="hidden" name="cat" value="{{ cat }}">
+  <input class="search-input" name="q" value="{{ q }}" placeholder="Buscar artículos…" style="flex:1;max-width:360px">
+  <button type="submit" class="btn-primary btn-sm">Buscar</button>
+  {% if q %}<a href="{{ url_for('articles', cat=cat) }}" class="btn-ghost btn-sm">✕ Limpiar</a>{% endif %}
+</form>
+
+{% if q %}
+<p style="color:var(--text3);font-size:13px;margin-bottom:14px">
+  {{ articles|length }} resultado{{ 's' if articles|length != 1 }} para "<strong>{{ q }}</strong>"
+</p>
+{% endif %}
+
+{% if articles %}
+  {% for art in articles %}
+  {% set c = get_cat(art.category) %}
+  <a href="{{ url_for('article_detail', article_id=art.id) }}"
+     class="card card-hover article-card">
+    <div class="card-top">
+      <div class="cat-emoji" style="background:{{ c.bg }}">{{ c.emoji }}</div>
+      <div style="flex:1">
+        <div class="cat-pill" style="color:{{ c.color }};background:{{ c.bg }};font-size:11px;margin-bottom:3px">
+          {{ c.label|upper }}
+        </div>
+        <div class="title">{{ art.title }}</div>
+      </div>
+      {% if art.featured %}
+      <span class="badge badge-featured">★ Destacado</span>
+      {% endif %}
+    </div>
+    <div class="excerpt">{{ art.excerpt }}</div>
+    <div class="tags-row" style="margin:6px 0">
+      {% for tag in art.tags %}
+      <span class="tag-chip">#{{ tag }}</span>
+      {% endfor %}
+    </div>
+    <div class="meta">
+      <div class="avatar avatar-sm" style="background:{{ c.color }}">{{ art.init }}</div>
+      <span>{{ art.author }} · {{ art.read_time }} min lectura</span>
+      <span class="meta-right">👁 {{ "{:,}".format(art.views) }}  💬 {{ art.comments }}  ❤ {{ art.likes }}</span>
+    </div>
+  </a>
+  {% endfor %}
+{% else %}
+  <div class="empty-state">
+    <div style="font-size:40px;margin-bottom:12px">📭</div>
+    <p>No se encontraron artículos.</p>
+    <a href="{{ url_for('articles') }}" class="btn-ghost btn-sm" style="margin-top:10px">Ver todos</a>
+  </div>
+{% endif %}
+{% endblock %}

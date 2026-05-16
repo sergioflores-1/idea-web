@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Eventos — IDEA Blog{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;margin-bottom:20px">
+  <div>
+    <h1 style="font-size:20px;font-weight:700;margin:0 0 4px">📅 Eventos</h1>
+    <p style="color:var(--text3);font-size:13px;margin:0">Próximos eventos y actividades de la comunidad</p>
+  </div>
+</div>
+
+{% for event in events %}
+<div class="card card-hover event-card">
+  <div class="event-date-box">
+    <div class="event-day">{{ event.date_label.split()[0] }}</div>
+    <div class="event-month">{{ event.date_label.split()[1] if event.date_label.split()|length > 1 else '' }}</div>
+  </div>
+  <div class="event-info">
+    <div class="event-type-badge">{{ event.type }}</div>
+    <div class="event-title">{{ event.title }}</div>
+    <div class="event-meta">
+      🗓 {{ event.date_label }} &nbsp;·&nbsp; 🕐 {{ event.time }} &nbsp;·&nbsp; 📍 {{ event.location }}
+    </div>
+    <div class="event-desc">{{ event.description }}</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--text3)">
+        {% if event.capacity %}👥 {{ event.registered }}/{{ event.capacity }} registrados{% endif %}
+      </span>
+      {% if session.user %}
+      <button class="btn-primary btn-sm"
+              data-id="{{ event.id }}"
+              onclick="registerEvent({{ event.id }}, this)">
+        Registrarme
+      </button>
+      {% else %}
+      <button class="btn-ghost btn-sm" onclick="requireAuth('para registrarte en eventos')">
+        Únete para registrarte
+      </button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

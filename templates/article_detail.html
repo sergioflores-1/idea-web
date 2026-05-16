@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{{ article.title }} — IDEA Blog{% endblock %}
+{% block content %}
+
+{% set c = get_cat(article.category) %}
+
+<div style="margin-bottom:16px">
+  <a href="{{ url_for('articles') }}" class="btn-ghost btn-sm">← Volver a artículos</a>
+</div>
+
+<article class="article-detail">
+  <!-- Category badge -->
+  <div class="cat-pill" style="color:{{ c.color }};background:{{ c.bg }};display:inline-flex;align-items:center;gap:4px;margin-bottom:12px">
+    {{ c.emoji }} {{ c.label }}
+  </div>
+
+  <h1 class="article-title">{{ article.title }}</h1>
+
+  <div class="article-meta">
+    <div class="avatar" style="background:{{ c.color }}">{{ article.init }}</div>
+    <div>
+      <div style="font-weight:600">{{ article.author }}</div>
+      <div style="color:var(--text3);font-size:12px">{{ article.read_time }} min lectura · 👁 {{ "{:,}".format(article.views) }} vistas</div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <span class="stat-chip">❤ {{ article.likes }}</span>
+      <span class="stat-chip">💬 {{ article.comments }}</span>
+      {% if user %}
+      <a href="{{ url_for('download_article', article_id=article.id) }}"
+         class="btn-ghost btn-sm" title="Descargar artículo">⬇ Descargar</a>
+      {% else %}
+      <button class="btn-ghost btn-sm"
+              onclick="requireAuth('para descargar artículos')"
+              title="Inicia sesión para descargar">⬇ Descargar</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="tags-row" style="margin:10px 0 20px">
+    {% for tag in article.tags %}
+    <span class="tag-chip">#{{ tag }}</span>
+    {% endfor %}
+  </div>
+
+  <div class="article-excerpt">{{ article.excerpt }}</div>
+
+  <hr class="sep">
+
+  <div class="article-body prose">
+    {{ content_html|safe }}
+  </div>
+</article>
+
+<div class="card" style="margin-top:24px;padding:16px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+    <div class="avatar" style="background:{{ c.color }}">{{ article.init }}</div>
+    <div>
+      <div style="font-weight:600">{{ article.author }}</div>
+      <div style="color:var(--text3);font-size:12px">Autor del artículo</div>
+    </div>
+    <button class="btn-ghost btn-sm" style="margin-left:auto"
+            onclick="askAI('{{ article.title|replace("'","\\'")|replace('"','\\"') }}')">
+      ✦ Preguntar a Claude
+    </button>
+  </div>
+  <p style="color:var(--text2);font-size:13px;margin:0">
+    ¿Tienes preguntas sobre este artículo? Usa el asistente de IA para profundizar en el tema.
+  </p>
+</div>
+
+<script>
+function askAI(title) {
+  const text = 'Explícame más sobre el tema: ' + title;
+  window.location.href = "{{ url_for('ai_hub') }}?text=" + encodeURIComponent(text);
+}
+</script>
+{% endblock %}

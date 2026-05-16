@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ article.title }} — IDEA Blog</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      background: #fff; color: #1a1a2e;
+      max-width: 720px; margin: 0 auto;
+      padding: 48px 32px 80px;
+      font-size: 16px; line-height: 1.8;
+    }
+
+    /* Header */
+    .doc-header {
+      border-bottom: 3px solid #e94560;
+      padding-bottom: 24px; margin-bottom: 32px;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 20px;
+    }
+    .brand-box {
+      width: 34px; height: 34px; background: #e94560; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 10px; letter-spacing: .5px;
+    }
+    .brand-name { font-family: 'Segoe UI', sans-serif; font-weight: 700; font-size: 15px; }
+    .brand-name span { color: #f5a623; font-size: 12px; margin-left: 2px; }
+
+    .cat-badge {
+      display: inline-block; padding: 3px 12px; border-radius: 20px;
+      font-family: 'Segoe UI', sans-serif; font-size: 12px; font-weight: 600;
+      margin-bottom: 14px;
+    }
+    h1 {
+      font-size: 28px; font-weight: 700; line-height: 1.25;
+      color: #12102a; margin-bottom: 14px;
+    }
+    .excerpt {
+      font-size: 16px; color: #4a4a5a; font-style: italic;
+      border-left: 3px solid #533483; padding-left: 14px;
+      margin-bottom: 18px; line-height: 1.6;
+    }
+    .meta {
+      font-family: 'Segoe UI', sans-serif; font-size: 13px; color: #8a8a9a;
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    }
+    .meta-author { font-weight: 600; color: #4a4a5a; }
+    .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .tag {
+      padding: 2px 8px; border-radius: 4px; background: #f1f2f7;
+      font-family: 'Segoe UI', sans-serif; font-size: 11px; color: #4a4a5a;
+    }
+
+    /* Body */
+    .article-body { margin-top: 32px; }
+    .article-body h2 {
+      font-size: 20px; font-weight: 700; margin: 32px 0 12px;
+      color: #12102a; border-bottom: 1px solid #e2e2ea; padding-bottom: 6px;
+    }
+    .article-body h3 { font-size: 17px; font-weight: 700; margin: 22px 0 8px; color: #12102a; }
+    .article-body p  { margin-bottom: 16px; color: #2a2a3e; }
+    .article-body ul, .article-body ol { margin: 0 0 16px 24px; }
+    .article-body li { margin-bottom: 6px; color: #2a2a3e; }
+    .article-body strong { font-weight: 700; }
+    .article-body em { font-style: italic; }
+    .article-body pre {
+      background: #1a1535; color: #e8e8f0; border-radius: 8px;
+      padding: 18px; overflow-x: auto; margin-bottom: 16px;
+      font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; line-height: 1.6;
+    }
+    .article-body code { font-family: 'Consolas', 'Courier New', monospace; font-size: 14px; }
+    .article-body p code {
+      background: #f1f2f7; padding: 2px 6px; border-radius: 4px; font-size: 13px;
+    }
+    .article-body blockquote {
+      border-left: 3px solid #533483; padding-left: 16px;
+      margin: 16px 0; color: #4a4a5a; font-style: italic;
+    }
+    .article-body table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    .article-body th, .article-body td {
+      border: 1px solid #e2e2ea; padding: 8px 12px; font-size: 14px; text-align: left;
+    }
+    .article-body th { background: #f6f7fb; font-weight: 700; }
+    .article-body hr { border: none; border-top: 1px solid #e2e2ea; margin: 24px 0; }
+
+    /* Footer */
+    .doc-footer {
+      margin-top: 48px; padding-top: 20px; border-top: 1px solid #e2e2ea;
+      font-family: 'Segoe UI', sans-serif; font-size: 12px; color: #8a8a9a;
+      text-align: center;
+    }
+
+    @media print {
+      body { padding: 20px; }
+      .article-body pre { white-space: pre-wrap; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="doc-header">
+  <div class="brand">
+    <div class="brand-box">IDEA</div>
+    <div class="brand-name">IDEA Blog <span>· idea.community</span></div>
+  </div>
+
+  {% set c = get_cat(article.category) %}
+  <div class="cat-badge" style="color:{{ c.color }};background:{{ c.bg }}">
+    {{ c.emoji }} {{ c.label }}
+  </div>
+
+  <h1>{{ article.title }}</h1>
+
+  <div class="excerpt">{{ article.excerpt }}</div>
+
+  <div class="meta">
+    <span class="meta-author">{{ article.author }}</span>
+    <span>· {{ article.read_time }} min lectura</span>
+    <span>· 👁 {{ "{:,}".format(article.views) }} vistas</span>
+    <span>· ❤ {{ article.likes }}</span>
+  </div>
+  <div class="tags" style="margin-top:10px">
+    {% for tag in article.tags %}
+    <span class="tag">#{{ tag }}</span>
+    {% endfor %}
+  </div>
+</header>
+
+<div class="article-body">
+  {{ content_html|safe }}
+</div>
+
+<footer class="doc-footer">
+  Descargado desde <strong>IDEA Blog</strong> — Comunidad tecnológica latinoamericana.
+  Contenido protegido por su autor. Solo para uso personal.
+</footer>
+
+</body>
+</html>

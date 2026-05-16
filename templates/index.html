@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}IDEA Blog — Inicio{% endblock %}
+{% block content %}
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-label">✦ ARTÍCULO DESTACADO</div>
+  <div class="hero-title">{{ featured.title }}</div>
+  <div class="hero-excerpt">{{ featured.excerpt }}</div>
+  <div class="hero-meta">
+    {% set c = get_cat(featured.category) %}
+    <div class="avatar avatar-sm" style="background:{{ c.color }}">{{ featured.init }}</div>
+    <span>{{ featured.author }} · {{ featured.read_time }} min ·
+          👁 {{ "{:,}".format(featured.views) }} · ❤ {{ featured.likes }}</span>
+  </div>
+  <a href="{{ url_for('article_detail', article_id=featured.id) }}"
+     class="btn-primary">Leer artículo →</a>
+</div>
+
+<!-- Filtros -->
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+  <span style="color:var(--text3);font-size:13px">Filtrar:</span>
+  <div class="pill-bar" id="catPills">
+    <button class="filter-pill active" data-cat="all">📋 Todos</button>
+    {% for c in categories %}
+    <button class="filter-pill" data-cat="{{ c.id }}">{{ c.emoji }} {{ c.label }}</button>
+    {% endfor %}
+  </div>
+</div>
+
+<h2 style="font-size:16px;font-weight:700;margin-bottom:12px">Artículos recientes</h2>
+<div id="articlesList">
+  {% for art in articles %}
+  {% set c = get_cat(art.category) %}
+  <a href="{{ url_for('article_detail', article_id=art.id) }}"
+     class="card card-hover article-card" data-cat="{{ art.category }}">
+    <div class="card-top">
+      <div class="cat-emoji" style="background:{{ c.bg }}">{{ c.emoji }}</div>
+      <div style="flex:1">
+        <div class="cat-pill" style="color:{{ c.color }};background:{{ c.bg }};font-size:11px;margin-bottom:3px">
+          {{ c.label|upper }}
+        </div>
+        <div class="title">{{ art.title }}</div>
+      </div>
+      {% if art.featured %}
+      <span class="badge badge-featured">★ Destacado</span>
+      {% endif %}
+    </div>
+    <div class="excerpt">{{ art.excerpt }}</div>
+    <div class="meta">
+      <div class="avatar avatar-sm" style="background:{{ c.color }}">{{ art.init }}</div>
+      <span>{{ art.author }} · {{ art.read_time }} min</span>
+      <span class="meta-right">👁 {{ "{:,}".format(art.views) }}  💬 {{ art.comments }}  ❤ {{ art.likes }}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<hr class="sep">
+
+<!-- Foros activos -->
+<div style="display:flex;align-items:center;margin-bottom:12px">
+  <h2 style="font-size:16px;font-weight:700">💬 Foros activos</h2>
+  <a href="{{ url_for('forums') }}" class="btn-ghost btn-sm" style="margin-left:auto">Ver todos →</a>
+</div>
+
+{% for f in forums %}
+{% set c = get_cat(f.category) %}
+<a href="{{ url_for('forum_detail', forum_id=f.id) }}"
+   class="card card-hover forum-card">
+  <div class="vote-box">
+    <div class="vote-count">{{ f.votes }}</div>
+    <div class="vote-label">votos</div>
+  </div>
+  <div class="forum-info">
+    <div class="forum-title">{{ f.title }}</div>
+    <div class="forum-meta">💬 {{ f.answers }} respuestas · 👁 {{ "{:,}".format(f.views) }}
+      {% if f.solved %} · <span style="color:var(--teal,#0f766e)">✓ Resuelto</span>{% endif %}
+    </div>
+  </div>
+</a>
+{% endfor %}
+
+<script>
+document.querySelectorAll('#catPills .filter-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#catPills .filter-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const cat = btn.dataset.cat;
+    document.querySelectorAll('#articlesList [data-cat]').forEach(card => {
+      card.style.display = (cat === 'all' || card.dataset.cat === cat) ? '' : 'none';
+    });
+  });
+});
+</script>
+{% endblock %}

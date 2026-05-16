@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Miembros — IDEA Blog{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;margin-bottom:20px">
+  <div>
+    <h1 style="font-size:20px;font-weight:700;margin:0 0 4px">👥 Miembros destacados</h1>
+    <p style="color:var(--text3);font-size:13px;margin:0">Conoce a los colaboradores de la comunidad IDEA</p>
+  </div>
+</div>
+
+<div class="grid-3">
+{% for m in members %}
+<div class="card card-hover member-card">
+  <div class="member-header">
+    <div class="avatar avatar-lg" style="background:{{ m.color }}">{{ m.init }}</div>
+    {% if m.badge %}
+    <span class="badge badge-role">{{ m.badge }}</span>
+    {% endif %}
+  </div>
+  <div class="member-name">{{ m.name }}</div>
+  <div class="member-role">{{ m.role }}</div>
+  <div class="member-bio">{{ m.bio }}</div>
+  <div class="member-stats">
+    <div class="stat-item">
+      <div class="stat-num">{{ m.articles }}</div>
+      <div class="stat-label">artículos</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">{{ m.forums }}</div>
+      <div class="stat-label">foros</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">{{ m.followers }}</div>
+      <div class="stat-label">seguidores</div>
+    </div>
+  </div>
+  <div class="member-tags">
+    {% for skill in m.skills %}
+    <span class="tag-chip">#{{ skill }}</span>
+    {% endfor %}
+  </div>
+  {% if session.user %}
+  <button class="btn-ghost btn-sm" style="width:100%;margin-top:8px"
+          onclick="showToast('Función de seguimiento próximamente')">
+    + Seguir
+  </button>
+  {% endif %}
+</div>
+{% endfor %}
+</div>
+{% endblock %}

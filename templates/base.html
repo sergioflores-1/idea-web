@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}IDEA Blog{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body data-page="{{ request.endpoint }}">
+
+<!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-box">IDEA</div>
+    <div class="logo-text">
+      <strong>IDEA</strong>
+      <span>Blog</span>
+    </div>
+  </div>
+
+  <ul class="nav-list">
+    {% set nav = [
+      ('🏠', 'Inicio',      'index'),
+      ('📰', 'Artículos',   'articles'),
+      ('💬', 'Foros',       'forums'),
+      ('🗂', 'Paneles',     'panels'),
+      ('📅', 'Eventos',     'events'),
+      ('👥', 'Miembros',    'members'),
+    ] %}
+    {% for emoji, label, endpoint in nav %}
+    <li class="nav-item">
+      <a href="{{ url_for(endpoint) }}"
+         class="{{ 'active' if request.endpoint == endpoint else '' }}">
+        <span class="nav-emoji">{{ emoji }}</span>{{ label }}
+      </a>
+    </li>
+    {% endfor %}
+    <li class="nav-item ai-link">
+      <a href="{{ url_for('ai_hub') }}"
+         class="{{ 'active' if request.endpoint == 'ai_hub' else '' }}">
+        <span class="nav-emoji">✦</span>IA / Claude
+      </a>
+    </li>
+  </ul>
+
+  <hr class="sidebar-sep">
+
+  <div class="sidebar-links">
+    <button onclick="openModal('conductModal')">📋 Código de Conducta</button>
+    <button onclick="openModal('aboutModal')">ℹ️ Acerca de IDEA</button>
+  </div>
+
+  <div class="user-panel">
+    {% if user %}
+    <div class="user-avatar-lg">{{ user.init }}</div>
+    <div class="user-name">{{ user.name }}</div>
+    <div class="user-email">{{ user.email }}</div>
+    <button class="btn-logout" onclick="doLogout()">Cerrar sesión</button>
+    {% else %}
+    <div class="user-panel-guest">
+      <p>Inicia sesión para<br>participar en la comunidad</p>
+      <button class="btn-primary btn-sm" onclick="openModal('loginModal')">
+        Iniciar sesión →
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</aside>
+
+<!-- ── Topbar ────────────────────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="globalSearch" placeholder="Buscar artículos, foros…"
+           onkeydown="if(event.key==='Enter') doSearch(this.value)">
+  </div>
+  <div class="topbar-auth">
+    {% if user %}
+    <div class="topbar-user">
+      <div class="user-avatar-sm">{{ user.init }}</div>
+      <span>{{ user.name.split()[0] }}</span>
+    </div>
+    <button class="btn-topbar-logout" onclick="doLogout()">Salir</button>
+    {% else %}
+    <button class="btn-login" onclick="openModal('loginModal')">Ingresar</button>
+    <button class="btn-join"  onclick="openModal('registerModal')">Únete</button>
+    {% endif %}
+  </div>
+</header>
+
+<!-- ── Main ──────────────────────────────────────────────────────────────── -->
+<main class="main-content">
+  <div class="page">
+    {% block content %}{% endblock %}
+  </div>
+</main>
+
+<!-- ── Toast ─────────────────────────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<!-- ── Login Modal ───────────────────────────────────────────────────────── -->
+<div id="loginModal" class="modal-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" onclick="closeModal('loginModal')">×</button>
+    <h2 style="color:var(--accent)">IDEA Blog</h2>
+    <p class="sub">Bienvenido de vuelta</p>
+    <div class="form-group">
+      <label>Correo electrónico</label>
+      <input type="email" id="loginEmail" placeholder="tu@email.com">
+    </div>
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input type="password" id="loginPwd" placeholder="••••••••"
+             onkeydown="if(event.key==='Enter') submitLogin()">
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:4px" onclick="submitLogin()">
+      Iniciar sesión
+    </button>
+    <p class="modal-footer">
+      ¿No tienes cuenta?
+      <button onclick="closeModal('loginModal');openModal('registerModal')">
+        Regístrate gratis →
+      </button>
+    </p>
+  </div>
+</div>
+
+<!-- ── Register Modal ────────────────────────────────────────────────────── -->
+<div id="registerModal" class="modal-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" onclick="closeModal('registerModal')">×</button>
+    <h2>Crear cuenta en IDEA</h2>
+    <p class="sub" style="margin-bottom:16px"></p>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nombre *</label>
+        <input type="text" id="regFirst" placeholder="María">
+      </div>
+      <div class="form-group">
+        <label>Apellido</label>
+        <input type="text" id="regLast" placeholder="Pérez">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Correo electrónico *</label>
+      <input type="email" id="regEmail" placeholder="tu@email.com">
+    </div>
+    <div class="form-group">
+      <label>Contraseña *</label>
+      <input type="password" id="regPwd" placeholder="••••••••"
+             onkeydown="if(event.key==='Enter') submitRegister()">
+    </div>
+    <button class="btn-primary" style="width:100%;margin-top:4px" onclick="submitRegister()">
+      Crear mi cuenta →
+    </button>
+    <p class="modal-footer">
+      ¿Ya tienes cuenta?
+      <button onclick="closeModal('registerModal');openModal('loginModal')">
+        Inicia sesión
+      </button>
+    </p>
+  </div>
+</div>
+
+<!-- ── Conducta Modal ─────────────────────────────────────────────────────── -->
+<div id="conductModal" class="modal-overlay">
+  <div class="modal modal-wrap" style="width:520px;max-width:95vw">
+    <button class="modal-close" onclick="closeModal('conductModal')">×</button>
+    <h2 style="margin-bottom:16px">📋 Código de Conducta IDEA</h2>
+    <ul class="conduct-list">
+      {% for title, text in conduct_rules %}
+      <li class="conduct-item">
+        <div class="conduct-num">{{ loop.index }}</div>
+        <div class="conduct-text">
+          <strong>{{ title }}</strong>
+          <span>{{ text }}</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    <button class="btn-ghost" style="width:100%;margin-top:8px"
+            onclick="closeModal('conductModal')">Cerrar</button>
+  </div>
+</div>
+
+<!-- ── About Modal ───────────────────────────────────────────────────────── -->
+<div id="aboutModal" class="modal-overlay">
+  <div class="modal modal-wrap" style="text-align:center">
+    <button class="modal-close" onclick="closeModal('aboutModal')">×</button>
+    <h1 style="font-size:36px;color:var(--accent);margin-bottom:4px">IDEA</h1>
+    <p style="color:var(--text2);margin-bottom:16px">Innovation · Development · Education · AI</p>
+    <div class="about-stats">
+      <div class="about-stat"><strong>8,400</strong><span>Miembros</span></div>
+      <div class="about-stat"><strong>1,200</strong><span>Artículos</span></div>
+      <div class="about-stat"><strong>18</strong><span>Países</span></div>
+      <div class="about-stat"><strong>2.0.0</strong><span>Versión</span></div>
+    </div>
+    <p style="color:var(--gold);font-size:13px;margin-bottom:16px">
+      Powered by Claude — Anthropic
+    </p>
+    <button class="btn-ghost" style="width:100%" onclick="closeModal('aboutModal')">
+      Cerrar
+    </button>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

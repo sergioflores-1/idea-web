@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}IA / Claude — IDEA Blog{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:18px">
+  <h1 style="font-size:20px;font-weight:700;margin:0 0 4px">✦ Centro de Inteligencia Artificial</h1>
+  <p style="color:var(--text3);font-size:13px;margin:0">Herramientas de IA para la comunidad IDEA, potenciadas por Claude</p>
+</div>
+
+<!-- API Key banner -->
+<div class="card" id="apiKeyBanner" style="background:var(--purple);border:none;margin-bottom:16px;padding:14px 16px">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:20px">🔑</span>
+    <div style="flex:1">
+      <div style="font-weight:600;margin-bottom:2px">Configura tu API Key de Claude</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.7)">Tu key nunca se almacena en el servidor</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="apiKeyInput" type="password" class="search-input" placeholder="sk-ant-…"
+             style="width:220px;font-size:13px" value="">
+      <button class="btn-primary btn-sm" onclick="saveApiKey()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Module tabs -->
+<div class="ai-tabs" style="margin-bottom:16px">
+  {% for mod in modules %}
+  <button class="ai-tab {{ 'active' if mode == mod.id else '' }}"
+          data-mode="{{ mod.id }}"
+          onclick="switchMode('{{ mod.id }}')">
+    {{ mod.emoji }} {{ mod.label }}
+  </button>
+  {% endfor %}
+</div>
+
+<!-- Module description -->
+<div id="modeDesc" class="card" style="padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+  <span id="modeEmoji" style="font-size:22px"></span>
+  <div>
+    <strong id="modeName"></strong>
+    <span id="modeDescText" style="color:var(--text3);font-size:13px;margin-left:8px"></span>
+  </div>
+</div>
+
+<!-- Chat area -->
+<div id="chatMessages" class="chat-messages"></div>
+
+<!-- Input area -->
+<div class="chat-input-row">
+  <textarea id="chatInput" class="search-input chat-textarea"
+            placeholder="Escribe tu mensaje…" rows="3"
+            onkeydown="handleEnter(event)"></textarea>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <button class="btn-primary" id="sendBtn" onclick="sendMessage()" style="white-space:nowrap">Enviar ↑</button>
+    <button class="btn-ghost btn-sm" onclick="clearChat()">Limpiar</button>
+  </div>
+</div>
+
+<!-- Result box for non-chat modes -->
+<div id="resultBox" class="result-box" style="display:none">
+  <div class="result-header">
+    <span>✦ Respuesta de Claude</span>
+    <button class="btn-ghost btn-sm" onclick="copyResult()">📋 Copiar</button>
+  </div>
+  <div id="resultContent" class="result-content"></div>
+</div>
+
+<script>
+const AI_MODULES = {{ modules | tojson }};
+const AI_PROMPTS = {
+  assistant:    "Eres el asistente del blog IDEA, comunidad tecnológica latinoamericana. Responde en español, de forma clara y amigable.",
+  summarizer:   "Genera un resumen estructurado: 1) Resumen ejecutivo, 2) 5 puntos clave, 3) Términos técnicos, 4) Aplicación práctica para LATAM. Responde en español.",
+  codereviewer: "Eres un senior developer. Revisa el código, detecta bugs y malas prácticas. Proporciona código mejorado con explicaciones en español.",
+  forumhelper:  "Genera respuestas técnicas completas para preguntas de foros tecnológicos. Sé específico, incluye código cuando sea útil. Responde en español.",
+  ideas:        "Genera ideas creativas para artículos o proyectos tecnológicos para la comunidad latinoamericana. Incluye título, descripción, dificultad y tiempo estimado. Responde en español.",
+};
+
+let currentMode  = '{{ mode }}';
+let chatHistory  = [];
+let isStreaming  = false;
+const prefill    = {{ prefill | tojson }};
+
+function getApiKey() {
+  return localStorage.getItem('idea_api_key') || '';
+}
+
+function saveApiKey() {
+  const v = document.getElementById('apiKeyInput').value.trim();
+  if (!v.startsWith('sk-')) { showToast('La key debe empezar con sk-'); return; }
+  localStorage.setItem('idea_api_key', v);
+  document.getElementById('apiKeyBanner').style.background = 'var(--card)';
+  showToast('API Key guardada ✓');
+}
+
+function updateModuleUI() {
+  const mod = AI_MODULES.find(m => m.id === currentMode);
+  if (!mod) return;
+  document.getElementById('modeEmoji').textContent    = mod.emoji;
+  document.getElementById('modeName').textContent     = mod.label;
+  document.getElementById('modeDescText').textContent = mod.desc;
+  document.querySelectorAll('.ai-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.mode === currentMode);
+  });
+}
+
+function switchMode(mode) {
+  currentMode = mode;
+  chatHistory = [];
+  updateModuleUI();
+  document.getElementById('chatMessages').innerHTML = '';
+  document.getElementById('resultBox').style.display = 'none';
+  document.getElementById('chatInput').placeholder =
+    mode === 'assistant' ? 'Escribe tu pregunta…' :
+    mode === 'summarizer' ? 'Pega el texto a resumir…' :
+    mode === 'codereviewer' ? 'Pega el código a revisar…' :
+    mode === 'forumhelper' ? 'Escribe la pregunta del foro…' :
+    'Describe el tema o área de ideas…';
+}
+
+function appendMessage(role, text, streaming = false) {
+  const box = document.getElementById('chatMessages');
+  if (streaming) {
+    let el = box.querySelector('.msg-streaming');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = `chat-msg msg-${role} msg-streaming`;
+      box.appendChild(el);
+    }
+    el.textContent += text;
+    box.scrollTop = box.scrollHeight;
+    return el;
+  }
+  const el = document.createElement('div');
+  el.className = `chat-msg msg-${role}`;
+  el.textContent = text;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+  return el;
+}
+
+async function sendMessage() {
+  if (isStreaming) return;
+  const input   = document.getElementById('chatInput');
+  const userMsg = input.value.trim();
+  if (!userMsg) return;
+
+  const apiKey = getApiKey();
+  if (!apiKey) { showToast('Configura tu API Key primero'); return; }
+
+  input.value = '';
+  appendMessage('user', userMsg);
+  chatHistory.push({ role: 'user', content: userMsg });
+
+  const systemPrompt = AI_PROMPTS[currentMode] || AI_PROMPTS.assistant;
+
+  isStreaming = true;
+  document.getElementById('sendBtn').disabled = true;
+  document.getElementById('sendBtn').textContent = '…';
+
+  let streamEl = null;
+  let fullText = '';
+
+  try {
+    const resp = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey, messages: chatHistory, system: systemPrompt }),
+    });
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') break;
+        try {
+          const evt = JSON.parse(raw);
+          if (evt.error) { showToast('Error: ' + evt.error); break; }
+          if (evt.text) {
+            fullText += evt.text;
+            if (!streamEl) {
+              streamEl = document.getElementById('chatMessages').querySelector('.msg-streaming');
+              if (!streamEl) {
+                streamEl = document.createElement('div');
+                streamEl.className = 'chat-msg msg-assistant msg-streaming';
+                document.getElementById('chatMessages').appendChild(streamEl);
+              }
+            }
+            streamEl.textContent = fullText;
+            document.getElementById('chatMessages').scrollTop =
+              document.getElementById('chatMessages').scrollHeight;
+          }
+        } catch (_) {}
+      }
+    }
+  } catch (e) {
+    showToast('Error de conexión: ' + e.message);
+  }
+
+  if (streamEl) streamEl.classList.remove('msg-streaming');
+  if (fullText) chatHistory.push({ role: 'assistant', content: fullText });
+
+  isStreaming = false;
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('sendBtn').textContent = 'Enviar ↑';
+}
+
+function handleEnter(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function clearChat() {
+  chatHistory = [];
+  document.getElementById('chatMessages').innerHTML = '';
+  document.getElementById('resultBox').style.display = 'none';
+}
+
+function copyResult() {
+  const text = document.getElementById('resultContent').textContent;
+  navigator.clipboard.writeText(text).then(() => showToast('Copiado ✓'));
+}
+
+// Init
+(function init() {
+  const stored = getApiKey();
+  if (stored) {
+    document.getElementById('apiKeyInput').value = stored;
+    document.getElementById('apiKeyBanner').style.background = 'var(--card)';
+  }
+  updateModuleUI();
+  if (prefill) {
+    document.getElementById('chatInput').value = prefill;
+  }
+})();
+</script>
+{% endblock %}
