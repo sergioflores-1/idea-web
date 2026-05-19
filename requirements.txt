@@ -3,3 +3,6 @@ gunicorn>=21.2
 requests>=2.31
 markdown>=3.5
 python-dotenv>=1.0
+flask-sqlalchemy>=3.1
+bcrypt>=4.1
+psycopg2-binary>=2.9
