@@ -6,15 +6,19 @@ function openModal(id) {
   if (el) el.style.display = 'flex';
 }
 
-// Show register modal with optional context hint (e.g. "para comentar en foros")
+// Show welcome modal with optional context hint (e.g. "para comentar en foros")
 function requireAuth(hint) {
-  const sub = document.querySelector('#registerModal .sub');
-  if (sub) {
-    sub.textContent = hint
-      ? `Crea tu cuenta gratuita ${hint}.`
-      : 'Únete a la comunidad IDEA para participar.';
+  const hintBox  = document.getElementById('welcomeHint');
+  const hintText = document.getElementById('welcomeHintText');
+  if (hintBox && hintText) {
+    if (hint) {
+      hintText.textContent = '👉 Necesitas una cuenta ' + hint + '.';
+      hintBox.style.display = 'block';
+    } else {
+      hintBox.style.display = 'none';
+    }
   }
-  openModal('registerModal');
+  openModal('welcomeModal');
 }
 
 function closeModal(id) {
@@ -151,10 +155,60 @@ async function registerEvent(eventId, btn) {
   }
 }
 
-// ── Wire up forms on DOMContentLoaded ────────────────────────────────────────
+// ── Auth form submit helpers ──────────────────────────────────────────────────
+function submitLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pwd   = document.getElementById('loginPwd').value;
+  doLogin({ email, password: pwd });
+}
+
+async function doLogin({ email, password }) {
+  const errEl = document.getElementById('loginError');
+  if (errEl) errEl.textContent = '';
+  try {
+    const r = await fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await r.json();
+    if (!r.ok) { if (errEl) errEl.textContent = data.error || 'Error al iniciar sesión'; return; }
+    showToast(`Bienvenido, ${data.user.display || data.user.name} ✓`);
+    setTimeout(() => location.reload(), 800);
+  } catch { if (errEl) errEl.textContent = 'Error de conexión'; }
+}
+
+function submitRegister() {
+  const first = document.getElementById('regFirst').value.trim();
+  const last  = document.getElementById('regLast').value.trim();
+  const alias = (document.getElementById('regAlias')?.value || '').trim();
+  const email = document.getElementById('regEmail').value.trim();
+  const pwd   = document.getElementById('regPwd').value;
+  doRegister({ first, last, alias, email, password: pwd });
+}
+
+async function doRegister({ first, last, alias, email, password }) {
+  const errEl = document.getElementById('registerError');
+  if (errEl) errEl.textContent = '';
+  try {
+    const r = await fetch('/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ first, last, alias, email, password }),
+    });
+    const data = await r.json();
+    if (!r.ok) { if (errEl) errEl.textContent = data.error || 'Error al registrarse'; return; }
+    showToast(`¡Bienvenido, ${data.user.display || data.user.name}! ✓`);
+    setTimeout(() => location.reload(), 800);
+  } catch { if (errEl) errEl.textContent = 'Error de conexión'; }
+}
+
+// ── Auto-show welcome modal en primera visita (sin sesión) ────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  const loginForm    = document.getElementById('loginForm');
-  const registerForm = document.getElementById('registerForm');
-  if (loginForm)    loginForm.addEventListener('submit', doLogin);
-  if (registerForm) registerForm.addEventListener('submit', doRegister);
+  const isLoggedIn   = document.body.dataset.loggedIn === 'true';
+  const alreadySeen  = localStorage.getItem('idea_welcome_seen');
+  if (!isLoggedIn && !alreadySeen) {
+    setTimeout(() => openModal('welcomeModal'), 600);
+    localStorage.setItem('idea_welcome_seen', '1');
+  }
 });

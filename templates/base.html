@@ -6,7 +6,7 @@
   <title>{% block title %}IDEA Blog{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body data-page="{{ request.endpoint }}">
+<body data-page="{{ request.endpoint }}" data-logged-in="{{ 'true' if user else 'false' }}">
 
 <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
 <aside class="sidebar">
@@ -46,21 +46,30 @@
   <hr class="sidebar-sep">
 
   <div class="sidebar-links">
+    <button class="sidebar-about-btn" onclick="openModal('aboutModal')">
+      <span style="font-size:15px">💡</span>
+      <span>Acerca de IDEA</span>
+    </button>
     <button onclick="openModal('conductModal')">📋 Código de Conducta</button>
-    <button onclick="openModal('aboutModal')">ℹ️ Acerca de IDEA</button>
   </div>
 
   <div class="user-panel">
     {% if user %}
     <div class="user-avatar-lg">{{ user.init }}</div>
     <div class="user-name">{{ user.name }}</div>
+    {% if user.alias %}
+    <div style="color:var(--gold);font-size:12px;margin-bottom:2px">@{{ user.alias }}</div>
+    {% endif %}
     <div class="user-email">{{ user.email }}</div>
     <button class="btn-logout" onclick="doLogout()">Cerrar sesión</button>
     {% else %}
     <div class="user-panel-guest">
-      <p>Inicia sesión para<br>participar en la comunidad</p>
-      <button class="btn-primary btn-sm" onclick="openModal('loginModal')">
-        Iniciar sesión →
+      <p>Únete a la comunidad<br>para participar</p>
+      <button class="btn-primary btn-sm" onclick="openModal('welcomeModal')" style="width:100%;margin-bottom:6px">
+        Crear cuenta →
+      </button>
+      <button class="btn-ghost btn-sm" onclick="openModal('loginModal')" style="width:100%;font-size:11px">
+        Ya tengo cuenta
       </button>
     </div>
     {% endif %}
@@ -78,12 +87,12 @@
     {% if user %}
     <div class="topbar-user">
       <div class="user-avatar-sm">{{ user.init }}</div>
-      <span>{{ user.name.split()[0] }}</span>
+      <span>{{ user.alias and ('@' + user.alias) or user.name.split()[0] }}</span>
     </div>
     <button class="btn-topbar-logout" onclick="doLogout()">Salir</button>
     {% else %}
     <button class="btn-login" onclick="openModal('loginModal')">Ingresar</button>
-    <button class="btn-join"  onclick="openModal('registerModal')">Únete</button>
+    <button class="btn-join"  onclick="openModal('welcomeModal')">Únete</button>
     {% endif %}
   </div>
 </header>
@@ -142,6 +151,16 @@
       </div>
     </div>
     <div class="form-group">
+      <label>Alias <span style="color:var(--text3);font-weight:400">(opcional — se mostrará en el blog)</span></label>
+      <div style="position:relative">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:14px">@</span>
+        <input type="text" id="regAlias" placeholder="mi_alias"
+               style="padding-left:26px" maxlength="30"
+               oninput="this.value=this.value.replace(/[^a-zA-Z0-9_]/g,'')">
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:3px">Solo letras, números y guion bajo. Sin espacios.</div>
+    </div>
+    <div class="form-group">
       <label>Correo electrónico *</label>
       <input type="email" id="regEmail" placeholder="tu@email.com">
     </div>
@@ -150,6 +169,7 @@
       <input type="password" id="regPwd" placeholder="••••••••"
              onkeydown="if(event.key==='Enter') submitRegister()">
     </div>
+    <div id="registerError" style="color:var(--accent);font-size:13px;margin-bottom:6px;min-height:18px"></div>
     <button class="btn-primary" style="width:100%;margin-top:4px" onclick="submitRegister()">
       Crear mi cuenta →
     </button>
@@ -185,22 +205,102 @@
 
 <!-- ── About Modal ───────────────────────────────────────────────────────── -->
 <div id="aboutModal" class="modal-overlay">
-  <div class="modal modal-wrap" style="text-align:center">
+  <div class="modal modal-wrap" style="width:580px;max-width:95vw">
     <button class="modal-close" onclick="closeModal('aboutModal')">×</button>
-    <h1 style="font-size:36px;color:var(--accent);margin-bottom:4px">IDEA</h1>
-    <p style="color:var(--text2);margin-bottom:16px">Innovation · Development · Education · AI</p>
-    <div class="about-stats">
+
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="display:inline-flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div class="logo-box" style="width:44px;height:44px;font-size:13px">IDEA</div>
+        <div style="text-align:left">
+          <div style="font-size:22px;font-weight:800;color:var(--accent)">IDEA Blog</div>
+          <div style="font-size:11px;color:var(--text3)">Innovation · Development · Education · AI</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="about-intro">
+      <p><strong>IDEA</strong> — <em>Innovation, Development, Education and Artificial Intelligence</em> — es un espacio abierto creado para quienes comparten la pasión por la tecnología y su impacto en nuestra sociedad.</p>
+      <p>Este blog nació con un propósito claro: reunir a personas curiosas, comprometidas con el aprendizaje y el intercambio de ideas, para compartir artículos, experiencias y reflexiones sobre las cuatro áreas que definen el mundo tecnológico de hoy: la innovación que transforma industrias, el desarrollo que construye soluciones, la educación que forma el talento del mañana y la inteligencia artificial que redefine lo posible.</p>
+      <p>IDEA es un espacio bilingüe — encontrarás contenido tanto en español como en inglés, porque el conocimiento no tiene fronteras y tampoco debería tenerlas este blog.</p>
+      <p>La única condición para participar es el respeto: a las ideas de los demás, a la diversidad de enfoques y a la honestidad intelectual. Podemos no coincidir; de hecho, el desacuerdo bien fundamentado es una de las fuentes más ricas de aprendizaje.</p>
+      <p class="about-firma"><strong>IDEA es tuyo. Léelo, compártelo, debátelo y construyámoslo juntos.</strong></p>
+      <p style="text-align:right;color:var(--text3);font-size:13px;margin-top:4px">— Sergio Flores, Administrador</p>
+    </div>
+
+    <div class="about-stats" style="margin-top:16px">
       <div class="about-stat"><strong>8,400</strong><span>Miembros</span></div>
       <div class="about-stat"><strong>1,200</strong><span>Artículos</span></div>
       <div class="about-stat"><strong>18</strong><span>Países</span></div>
-      <div class="about-stat"><strong>2.0.0</strong><span>Versión</span></div>
+      <div class="about-stat"><strong>Bilingüe</strong><span>ES · EN</span></div>
     </div>
-    <p style="color:var(--gold);font-size:13px;margin-bottom:16px">
-      Powered by Claude — Anthropic
+
+    <div style="text-align:center;margin-top:14px">
+      <span style="color:var(--gold);font-size:12px">✦ Powered by Claude — Anthropic</span>
+    </div>
+    <button class="btn-ghost" style="width:100%;margin-top:14px" onclick="closeModal('aboutModal')">Cerrar</button>
+  </div>
+</div>
+
+<!-- ── Welcome Modal (intro + guía + registro) ───────────────────────────── -->
+<div id="welcomeModal" class="modal-overlay">
+  <div class="modal modal-wrap" style="width:560px;max-width:95vw;padding:28px 32px">
+    <button class="modal-close" onclick="closeModal('welcomeModal')">×</button>
+
+    <!-- Encabezado -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div class="logo-box" style="width:40px;height:40px;font-size:12px;flex-shrink:0">IDEA</div>
+      <div>
+        <div style="font-size:18px;font-weight:800;color:var(--accent)">Bienvenido a IDEA Blog</div>
+        <div style="font-size:11px;color:var(--text3)">Innovation · Development · Education · AI</div>
+      </div>
+    </div>
+
+    <!-- Contexto de acción (se actualiza con requireAuth) -->
+    <div id="welcomeHint" class="welcome-hint" style="display:none">
+      <span id="welcomeHintText"></span>
+    </div>
+
+    <!-- Introducción breve -->
+    <p class="welcome-intro">
+      Un espacio abierto y bilingüe para compartir artículos, experiencias y debate
+      sobre innovación, desarrollo, educación e inteligencia artificial.
+      Puedes leer libremente — solo necesitas una cuenta para participar.
     </p>
-    <button class="btn-ghost" style="width:100%" onclick="closeModal('aboutModal')">
-      Cerrar
+
+    <hr class="sep" style="margin:14px 0">
+
+    <!-- Guía de uso -->
+    <p style="font-size:12px;font-weight:700;color:var(--text3);letter-spacing:.5px;margin-bottom:10px">
+      ¿QUÉ PUEDES HACER EN IDEA?
+    </p>
+    <ul class="welcome-guide">
+      <li><span class="wg-icon">📖</span><div><strong>Leer artículos</strong> en español e inglés sobre tecnología y sus tendencias</div></li>
+      <li><span class="wg-icon">💬</span><div><strong>Debatir en foros</strong> técnicos y compartir tu experiencia con la comunidad</div></li>
+      <li><span class="wg-icon">🗂</span><div><strong>Unirte a paneles</strong> temáticos de tu área de especialidad</div></li>
+      <li><span class="wg-icon">📅</span><div><strong>Asistir a eventos</strong>, webinars y talleres de la comunidad</div></li>
+      <li><span class="wg-icon">✦</span><div><strong>Usar el asistente IA</strong> con Claude para explorar, resumir y generar ideas</div></li>
+      <li><span class="wg-icon">⬇</span><div><strong>Descargar artículos</strong> para leerlos sin conexión</div></li>
+    </ul>
+
+    <!-- CTAs -->
+    <button class="btn-primary" style="width:100%;margin-top:18px;padding:11px"
+            onclick="closeModal('welcomeModal');openModal('registerModal')">
+      Crear mi cuenta gratis →
     </button>
+    <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:13px">
+      <button style="background:none;border:none;color:var(--accent);cursor:pointer"
+              onclick="closeModal('welcomeModal');openModal('loginModal')">
+        Ya tengo cuenta → Ingresar
+      </button>
+      <button style="background:none;border:none;color:var(--text3);cursor:pointer"
+              onclick="closeModal('welcomeModal')">
+        Solo quiero leer
+      </button>
+    </div>
+
+    <p style="text-align:center;font-size:11px;color:var(--text3);margin-top:14px">
+      — Sergio Flores, Administrador · IDEA Blog
+    </p>
   </div>
 </div>
 

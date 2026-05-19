@@ -151,11 +151,14 @@ def register():
     last  = (data.get("last")  or "").strip()
     email = (data.get("email") or "").strip()
     pwd   = data.get("password") or ""
+    alias = (data.get("alias") or "").strip().lstrip("@")
     if not first or not email or not pwd:
         return jsonify({"error": "Completa los campos obligatorios"}), 400
-    name = f"{first} {last}".strip()
-    init = (first[0] + (last[0] if last else (first[1] if len(first) > 1 else "X"))).upper()
-    session["user"] = {"name": name, "email": email, "init": init}
+    name  = f"{first} {last}".strip()
+    init  = (first[0] + (last[0] if last else (first[1] if len(first) > 1 else "X"))).upper()
+    display = f"@{alias}" if alias else name
+    session["user"] = {"name": name, "email": email, "init": init,
+                       "alias": alias, "display": display}
     return jsonify({"ok": True, "user": session["user"]})
 
 

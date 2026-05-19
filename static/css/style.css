@@ -672,6 +672,46 @@ input, textarea { font-family: inherit; }
   max-height: 360px; overflow-y: auto; line-height: 1.6;
 }
 
+/* ── Sidebar About button (destacado) ──────────────────────────────────────── */
+.sidebar-about-btn {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; text-align: left;
+  padding: 9px 12px; background: rgba(245,166,35,.12);
+  border: 1px solid rgba(245,166,35,.25); border-radius: 7px;
+  color: var(--gold); font-size: 13px; font-weight: 600;
+  margin-bottom: 6px; transition: background .15s;
+}
+.sidebar-about-btn:hover { background: rgba(245,166,35,.22); }
+
+/* ── About intro text ──────────────────────────────────────────────────────── */
+.about-intro p {
+  font-size: 13px; color: var(--text2); line-height: 1.65;
+  margin-bottom: 10px;
+}
+.about-firma { color: var(--text); font-size: 13px; }
+
+/* ── Welcome modal ─────────────────────────────────────────────────────────── */
+.welcome-hint {
+  background: #fff8e1; border: 1px solid #fcd34d;
+  border-radius: 7px; padding: 8px 14px;
+  font-size: 13px; color: #92400e; margin-bottom: 12px;
+}
+.welcome-intro {
+  font-size: 13px; color: var(--text2); line-height: 1.65; margin: 0;
+}
+.welcome-guide {
+  list-style: none; display: flex; flex-direction: column; gap: 9px;
+}
+.welcome-guide li {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 13px; color: var(--text2); line-height: 1.5;
+}
+.wg-icon {
+  font-size: 17px; flex-shrink: 0; width: 24px; text-align: center;
+  margin-top: 1px;
+}
+.welcome-guide strong { color: var(--text); }
+
 /* ── Responsive ────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   :root { --sidebar-w: 0px; }
