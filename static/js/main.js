@@ -49,52 +49,6 @@ function showToast(msg, duration = 3000) {
 }
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
-async function doLogin(e) {
-  e.preventDefault();
-  const email = document.getElementById('loginEmail').value.trim();
-  const pwd   = document.getElementById('loginPwd').value;
-  const errEl = document.getElementById('loginError');
-  errEl.textContent = '';
-
-  try {
-    const r = await fetch('/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pwd }),
-    });
-    const data = await r.json();
-    if (!r.ok) { errEl.textContent = data.error || 'Error al iniciar sesión'; return; }
-    showToast(`Bienvenido, ${data.user.name} ✓`);
-    setTimeout(() => location.reload(), 800);
-  } catch {
-    errEl.textContent = 'Error de conexión';
-  }
-}
-
-async function doRegister(e) {
-  e.preventDefault();
-  const first = document.getElementById('regFirst').value.trim();
-  const last  = document.getElementById('regLast').value.trim();
-  const email = document.getElementById('regEmail').value.trim();
-  const pwd   = document.getElementById('regPwd').value;
-  const errEl = document.getElementById('registerError');
-  errEl.textContent = '';
-
-  try {
-    const r = await fetch('/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ first, last, email, password: pwd }),
-    });
-    const data = await r.json();
-    if (!r.ok) { errEl.textContent = data.error || 'Error al registrarse'; return; }
-    showToast(`Cuenta creada, bienvenido ${data.user.name} ✓`);
-    setTimeout(() => location.reload(), 800);
-  } catch {
-    errEl.textContent = 'Error de conexión';
-  }
-}
-
 async function doLogout() {
   await fetch('/logout', { method: 'POST' });
   showToast('Sesión cerrada');
@@ -102,9 +56,8 @@ async function doLogout() {
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
-function doSearch(e) {
-  if (e.key !== 'Enter') return;
-  const q = e.target.value.trim();
+function doSearch(value) {
+  const q = (value || '').trim();
   if (!q) return;
   window.location.href = `/articles?q=${encodeURIComponent(q)}`;
 }
