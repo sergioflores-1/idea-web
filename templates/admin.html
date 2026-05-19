@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Panel de Administración — IDEA Blog{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+  <div>
+    <h1 style="font-size:20px;font-weight:700;margin:0 0 3px">⚙️ Panel de Administración</h1>
+    <p style="color:var(--text3);font-size:13px;margin:0">Solo visible para el administrador del blog</p>
+  </div>
+  <span class="badge badge-featured" style="margin-left:auto;padding:5px 14px;font-size:12px">Admin</span>
+</div>
+
+<!-- Estadísticas rápidas -->
+<div class="stats-bar" style="margin-bottom:24px">
+  <div class="stat-card"><div class="stat-num">{{ articles|length }}</div><div class="stat-label">Artículos</div></div>
+  <div class="stat-card"><div class="stat-num">{{ forums|length }}</div><div class="stat-label">Foros</div></div>
+  <div class="stat-card"><div class="stat-num">{{ members|length }}</div><div class="stat-label">Miembros</div></div>
+</div>
+
+<!-- ── Artículos ─────────────────────────────────────────────────────────── -->
+<div class="card" style="margin-bottom:16px">
+  <div class="admin-section-head">
+    <span>📰 Artículos</span>
+    <a href="{{ url_for('admin_new_article') }}" class="btn-primary btn-sm">+ Nuevo artículo</a>
+  </div>
+  <table class="admin-table">
+    <thead>
+      <tr><th>ID</th><th>Título</th><th>Autor</th><th>Categoría</th><th>Vistas</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for art in articles %}
+      {% set c = get_cat(art.category) %}
+      <tr id="art-row-{{ art.id }}">
+        <td style="color:var(--text3)">#{{ art.id }}</td>
+        <td>
+          <a href="{{ url_for('article_detail', article_id=art.id) }}"
+             style="color:var(--text);font-weight:600">{{ art.title }}</a>
+        </td>
+        <td>{{ art.author }}</td>
+        <td><span class="cat-pill" style="color:{{ c.color }};background:{{ c.bg }}">{{ c.emoji }} {{ c.label }}</span></td>
+        <td>{{ "{:,}".format(art.views) }}</td>
+        <td style="white-space:nowrap">
+          <a href="{{ url_for('admin_edit_article', article_id=art.id) }}"
+             class="btn-ghost btn-sm" style="margin-right:4px">✏️ Editar</a>
+          <button class="btn-delete" onclick="adminDelete('article', {{ art.id }}, this)">
+            🗑
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Foros ─────────────────────────────────────────────────────────────── -->
+<div class="card" style="margin-bottom:16px">
+  <div class="admin-section-head">
+    <span>💬 Foros / Preguntas</span>
+    <span style="color:var(--text3);font-size:13px">{{ forums|length }} en total</span>
+  </div>
+  <table class="admin-table">
+    <thead>
+      <tr><th>ID</th><th>Título</th><th>Votos</th><th>Respuestas</th><th>Estado</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for f in forums %}
+      <tr id="forum-row-{{ f.id }}">
+        <td style="color:var(--text3)">#{{ f.id }}</td>
+        <td>
+          <a href="{{ url_for('forum_detail', forum_id=f.id) }}"
+             style="color:var(--text);font-weight:600">{{ f.title }}</a>
+        </td>
+        <td>{{ f.votes }}</td>
+        <td>{{ f.answers }}</td>
+        <td>
+          {% if f.solved %}
+          <span style="color:#0f766e;font-weight:600;font-size:12px">✓ Resuelto</span>
+          {% else %}
+          <span style="color:var(--text3);font-size:12px">Abierto</span>
+          {% endif %}
+        </td>
+        <td>
+          <button class="btn-delete" onclick="adminDelete('forum', {{ f.id }}, this)">
+            🗑 Eliminar
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ── Miembros ───────────────────────────────────────────────────────────── -->
+<div class="card">
+  <div class="admin-section-head">
+    <span>👥 Miembros</span>
+    <span style="color:var(--text3);font-size:13px">{{ members|length }} en total</span>
+  </div>
+  <table class="admin-table">
+    <thead>
+      <tr><th>ID</th><th>Nombre</th><th>Rol</th><th>Artículos</th><th>Badge</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for m in members %}
+      <tr id="member-row-{{ m.id }}">
+        <td style="color:var(--text3)">#{{ m.id }}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="avatar avatar-sm" style="background:{{ m.color }}">{{ m.init }}</div>
+            <span style="font-weight:600">{{ m.name }}</span>
+          </div>
+        </td>
+        <td style="color:var(--text2)">{{ m.role }}</td>
+        <td>{{ m.articles }}</td>
+        <td><span class="badge-role">{{ m.badge }}</span></td>
+        <td>
+          <button class="btn-delete" onclick="adminDelete('member', {{ m.id }}, this)">
+            🗑 Eliminar
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal de confirmación -->
+<div id="confirmModal" class="modal-overlay">
+  <div class="modal modal-wrap" style="text-align:center;max-width:380px">
+    <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+    <h2 style="font-size:18px;margin-bottom:8px">¿Confirmar eliminación?</h2>
+    <p id="confirmText" style="color:var(--text2);font-size:14px;margin-bottom:20px"></p>
+    <div style="display:flex;gap:10px">
+      <button class="btn-ghost" style="flex:1" onclick="closeModal('confirmModal')">Cancelar</button>
+      <button id="confirmBtn" class="btn-primary"
+              style="flex:1;background:#b91c1c;border-color:#b91c1c">
+        Sí, eliminar
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let pendingDelete = null;
+
+async function adminDelete(type, id, btn) {
+  const labels = { article: 'artículo', forum: 'pregunta de foro', member: 'miembro' };
+  document.getElementById('confirmText').textContent =
+    `Estás a punto de eliminar este ${labels[type]}. Esta acción no se puede deshacer.`;
+  pendingDelete = { type, id, btn };
+  openModal('confirmModal');
+}
+
+document.getElementById('confirmBtn').addEventListener('click', async () => {
+  if (!pendingDelete) return;
+  const { type, id, btn } = pendingDelete;
+  closeModal('confirmModal');
+
+  try {
+    const r = await fetch(`/admin/delete/${type}/${id}`, { method: 'POST' });
+    const data = await r.json();
+    if (data.ok) {
+      const row = document.getElementById(`${type}-row-${id}`);
+      if (row) {
+        row.style.opacity = '0';
+        row.style.transition = 'opacity .3s';
+        setTimeout(() => row.remove(), 300);
+      }
+      showToast('Eliminado correctamente ✓');
+    } else {
+      showToast('Error al eliminar');
+    }
+  } catch {
+    showToast('Error de conexión');
+  }
+  pendingDelete = null;
+});
+</script>
+{% endblock %}

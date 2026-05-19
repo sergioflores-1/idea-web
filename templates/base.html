@@ -41,6 +41,14 @@
         <span class="nav-emoji">✦</span>IA / Claude
       </a>
     </li>
+    {% if is_admin %}
+    <li class="nav-item admin-link">
+      <a href="{{ url_for('admin_panel') }}"
+         class="{{ 'active' if request.endpoint == 'admin_panel' else '' }}">
+        <span class="nav-emoji">⚙️</span>Administración
+      </a>
+    </li>
+    {% endif %}
   </ul>
 
   <hr class="sidebar-sep">
@@ -225,6 +233,9 @@
       <p>La única condición para participar es el respeto: a las ideas de los demás, a la diversidad de enfoques y a la honestidad intelectual. Podemos no coincidir; de hecho, el desacuerdo bien fundamentado es una de las fuentes más ricas de aprendizaje.</p>
       <p class="about-firma"><strong>IDEA es tuyo. Léelo, compártelo, debátelo y construyámoslo juntos.</strong></p>
       <p style="text-align:right;color:var(--text3);font-size:13px;margin-top:4px">— Sergio Flores, Administrador</p>
+      <a href="mailto:{{ contact_email }}" class="contact-email-link">
+        ✉ {{ contact_email }}
+      </a>
     </div>
 
     <div class="about-stats" style="margin-top:16px">
@@ -299,7 +310,8 @@
     </div>
 
     <p style="text-align:center;font-size:11px;color:var(--text3);margin-top:14px">
-      — Sergio Flores, Administrador · IDEA Blog
+      — Sergio Flores, Administrador · IDEA Blog<br>
+      <a href="mailto:{{ contact_email }}" style="color:var(--accent)">{{ contact_email }}</a>
     </p>
   </div>
 </div>

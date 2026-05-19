@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if article else 'Nuevo' }} Artículo — IDEA Admin{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+  <a href="{{ url_for('admin_panel') }}" class="btn-ghost btn-sm">← Panel admin</a>
+  <h1 style="font-size:18px;font-weight:700;margin:0">
+    {{ '✏️ Editar artículo' if article else '✚ Nuevo artículo' }}
+  </h1>
+  {% if article %}
+  <a href="{{ url_for('article_detail', article_id=article.id) }}"
+     class="btn-ghost btn-sm" target="_blank" style="margin-left:auto">
+    👁 Ver publicado ↗
+  </a>
+  {% endif %}
+</div>
+
+<div class="editor-layout">
+  <!-- ── Columna izquierda: campos ── -->
+  <div class="editor-fields">
+    <div class="card" style="padding:18px">
+
+      <div class="form-group">
+        <label>Título *</label>
+        <input type="text" id="artTitle" class="editor-input"
+               placeholder="Título del artículo"
+               value="{{ article.title if article else '' }}">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Categoría *</label>
+          <select id="artCategory" class="editor-input">
+            {% for cat in categories %}
+            <option value="{{ cat.id }}"
+              {{ 'selected' if article and article.category == cat.id }}>
+              {{ cat.emoji }} {{ cat.label }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Autor</label>
+          <input type="text" id="artAuthor" class="editor-input"
+                 placeholder="Tu nombre"
+                 value="{{ article.author if article else (user.name if user else '') }}">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Extracto / Resumen *</label>
+        <textarea id="artExcerpt" class="editor-input" rows="2"
+                  placeholder="Breve descripción del artículo (1-2 oraciones)">{{ article.excerpt if article else '' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Tags <span style="color:var(--text3);font-weight:400">(separados por coma)</span></label>
+        <input type="text" id="artTags" class="editor-input"
+               placeholder="IA, Python, Machine Learning"
+               value="{{ article.tags|join(', ') if article else '' }}">
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500">
+          <input type="checkbox" id="artFeatured"
+                 {{ 'checked' if article and article.featured }}>
+          ★ Marcar como artículo destacado
+        </label>
+      </div>
+
+      <div id="editorError" style="color:var(--accent);font-size:13px;min-height:18px;margin-bottom:6px"></div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" onclick="saveArticle()">
+          {{ '💾 Guardar cambios' if article else '🚀 Publicar artículo' }}
+        </button>
+        <a href="{{ url_for('admin_panel') }}" class="btn-ghost">Cancelar</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Columna derecha: editor de contenido ── -->
+  <div class="editor-content-col">
+    <div class="card" style="padding:0;overflow:hidden">
+      <!-- Tabs -->
+      <div class="editor-tabs">
+        <button class="editor-tab active" id="tabEdit" onclick="switchTab('edit')">✏️ Escribir</button>
+        <button class="editor-tab" id="tabPreview" onclick="switchTab('preview')">👁 Vista previa</button>
+        <span style="margin-left:auto;font-size:11px;color:var(--text3);padding-right:12px;align-self:center">
+          Markdown soportado
+        </span>
+      </div>
+
+      <!-- Editor -->
+      <div id="panelEdit">
+        <textarea id="artContent" class="editor-textarea"
+                  placeholder="# Título de sección&#10;&#10;Escribe el contenido en **Markdown**...&#10;&#10;## Subtítulo&#10;&#10;- Elemento 1&#10;- Elemento 2&#10;&#10;```python&#10;print('Hola IDEA')&#10;```">{{ article.content if article else '' }}</textarea>
+        <div class="editor-footer">
+          <span id="wordCount" style="color:var(--text3);font-size:12px">0 palabras</span>
+          <span style="color:var(--text3);font-size:12px">· Tiempo estimado: <span id="readTime">0</span> min</span>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div id="panelPreview" style="display:none">
+        <div id="previewContent" class="prose"
+             style="padding:20px;min-height:400px;color:var(--text2);font-size:14px">
+          <em style="color:var(--text3)">Haz clic en "Vista previa" para renderizar el contenido.</em>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ayuda Markdown -->
+    <details class="markdown-help" style="margin-top:10px">
+      <summary>📖 Referencia rápida de Markdown</summary>
+      <div class="markdown-help-body">
+        <div class="md-row"><code># Título</code><span>Encabezado H1</span></div>
+        <div class="md-row"><code>## Subtítulo</code><span>Encabezado H2</span></div>
+        <div class="md-row"><code>**negrita**</code><span>Texto en <strong>negrita</strong></span></div>
+        <div class="md-row"><code>*cursiva*</code><span>Texto en <em>cursiva</em></span></div>
+        <div class="md-row"><code>`código`</code><span>Código inline</span></div>
+        <div class="md-row"><code>```python ... ```</code><span>Bloque de código</span></div>
+        <div class="md-row"><code>- elemento</code><span>Lista con viñeta</span></div>
+        <div class="md-row"><code>1. elemento</code><span>Lista numerada</span></div>
+        <div class="md-row"><code>[texto](url)</code><span>Enlace</span></div>
+        <div class="md-row"><code>> texto</code><span>Cita / blockquote</span></div>
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+const ARTICLE_ID = {{ article.id if article else 'null' }};
+let previewLoaded = false;
+
+function switchTab(tab) {
+  const isEdit = tab === 'edit';
+  document.getElementById('panelEdit').style.display    = isEdit ? '' : 'none';
+  document.getElementById('panelPreview').style.display = isEdit ? 'none' : '';
+  document.getElementById('tabEdit').classList.toggle('active', isEdit);
+  document.getElementById('tabPreview').classList.toggle('active', !isEdit);
+
+  if (!isEdit) loadPreview();
+}
+
+async function loadPreview() {
+  const text = document.getElementById('artContent').value;
+  const box  = document.getElementById('previewContent');
+  box.innerHTML = '<em style="color:var(--text3)">Renderizando…</em>';
+  try {
+    const r    = await fetch('/api/preview-md', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await r.json();
+    box.innerHTML = data.html || '<em style="color:var(--text3)">Sin contenido aún.</em>';
+  } catch {
+    box.innerHTML = '<em style="color:var(--accent)">Error al cargar vista previa.</em>';
+  }
+}
+
+// Contador de palabras
+document.getElementById('artContent').addEventListener('input', function () {
+  const words = this.value.trim().split(/\s+/).filter(Boolean).length;
+  const mins  = Math.max(1, Math.round(words / 200));
+  document.getElementById('wordCount').textContent = `${words.toLocaleString()} palabras`;
+  document.getElementById('readTime').textContent  = mins;
+});
+
+// Disparar al cargar si hay contenido
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('artContent').dispatchEvent(new Event('input'));
+});
+
+async function saveArticle() {
+  const errEl   = document.getElementById('editorError');
+  errEl.textContent = '';
+  const title   = document.getElementById('artTitle').value.trim();
+  const excerpt = document.getElementById('artExcerpt').value.trim();
+  const content = document.getElementById('artContent').value.trim();
+  if (!title)   { errEl.textContent = 'El título es obligatorio'; return; }
+  if (!excerpt) { errEl.textContent = 'El extracto es obligatorio'; return; }
+  if (!content) { errEl.textContent = 'El contenido no puede estar vacío'; return; }
+
+  const payload = {
+    title,
+    excerpt,
+    content,
+    category: document.getElementById('artCategory').value,
+    author:   document.getElementById('artAuthor').value.trim(),
+    tags:     document.getElementById('artTags').value,
+    featured: document.getElementById('artFeatured').checked,
+  };
+
+  const url    = ARTICLE_ID ? `/admin/articles/${ARTICLE_ID}/edit` : '/admin/articles/new';
+  const btn    = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+
+  try {
+    const r    = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      showToast(ARTICLE_ID ? 'Cambios guardados ✓' : 'Artículo publicado ✓');
+      setTimeout(() => window.location.href = `/articles/${data.id}`, 900);
+    } else {
+      errEl.textContent = data.error || 'Error al guardar';
+    }
+  } catch { errEl.textContent = 'Error de conexión'; }
+  finally { btn.disabled = false; btn.textContent = ARTICLE_ID ? '💾 Guardar cambios' : '🚀 Publicar artículo'; }
+}
+</script>
+{% endblock %}

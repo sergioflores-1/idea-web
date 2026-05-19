@@ -1,6 +1,6 @@
 import json, os, requests
 from flask import (Flask, render_template, request, session,
-                   jsonify, Response, redirect, url_for)
+                   jsonify, Response, redirect, url_for, abort)
 import markdown as md
 
 from data.data import (SAMPLE_ARTICLES, SAMPLE_FORUMS, SAMPLE_MEMBERS,
@@ -10,6 +10,31 @@ from data.data import (SAMPLE_ARTICLES, SAMPLE_FORUMS, SAMPLE_MEMBERS,
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "idea-blog-dev-secret-2025")
+
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "sflores@alumni.stanford.edu")
+CONTACT_EMAIL = ADMIN_EMAIL
+
+# Listas mutables en memoria (el admin puede eliminar elementos)
+db_articles = list(SAMPLE_ARTICLES)
+db_forums   = list(SAMPLE_FORUMS)
+db_members  = list(SAMPLE_MEMBERS)
+
+# Comentarios: {forum_id: [{"id", "author", "init", "text", "timestamp", "votes"}]}
+db_comments   = {}
+_comment_seq  = [0]
+_article_seq  = [max(a["id"] for a in db_articles)]
+
+def next_comment_id():
+    _comment_seq[0] += 1
+    return _comment_seq[0]
+
+def next_article_id():
+    _article_seq[0] += 1
+    return _article_seq[0]
+
+def is_admin():
+    u = session.get("user")
+    return bool(u and u.get("email") == ADMIN_EMAIL)
 
 
 def get_cat(cat_id):
@@ -25,6 +50,8 @@ def render_md(text):
 def inject_globals():
     return dict(
         user=session.get("user"),
+        is_admin=is_admin(),
+        contact_email=CONTACT_EMAIL,
         categories=CATEGORIES,
         trending_tags=TRENDING_TAGS,
         conduct_rules=CONDUCT_RULES,
@@ -36,18 +63,18 @@ def inject_globals():
 
 @app.route("/")
 def index():
-    featured = next((a for a in SAMPLE_ARTICLES if a["featured"]), SAMPLE_ARTICLES[0])
+    featured = next((a for a in db_articles if a["featured"]), db_articles[0])
     return render_template("index.html",
-                           articles=SAMPLE_ARTICLES,
-                           forums=SAMPLE_FORUMS[:3],
+                           articles=db_articles,
+                           forums=db_forums[:3],
                            featured=featured)
 
 
 @app.route("/articles")
 def articles():
-    cat = request.args.get("cat", "all")
-    q   = request.args.get("q", "").strip()
-    arts = SAMPLE_ARTICLES
+    cat  = request.args.get("cat", "all")
+    q    = request.args.get("q", "").strip()
+    arts = db_articles
     if cat != "all":
         arts = [a for a in arts if a["category"] == cat]
     if q:
@@ -58,7 +85,7 @@ def articles():
 
 @app.route("/articles/<int:article_id>")
 def article_detail(article_id):
-    art = next((a for a in SAMPLE_ARTICLES if a["id"] == article_id), None)
+    art = next((a for a in db_articles if a["id"] == article_id), None)
     if not art:
         return redirect(url_for("articles"))
     return render_template("article_detail.html",
@@ -70,7 +97,7 @@ def article_detail(article_id):
 def download_article(article_id):
     if not session.get("user"):
         return redirect(url_for("article_detail", article_id=article_id))
-    art = next((a for a in SAMPLE_ARTICLES if a["id"] == article_id), None)
+    art = next((a for a in db_articles if a["id"] == article_id), None)
     if not art:
         return redirect(url_for("articles"))
     html = render_template("article_download.html",
@@ -88,7 +115,7 @@ def download_article(article_id):
 @app.route("/forums")
 def forums():
     sort = request.args.get("sort", "recent")
-    fs = list(SAMPLE_FORUMS)
+    fs   = list(db_forums)
     if sort == "votes":
         fs.sort(key=lambda x: x["votes"], reverse=True)
     elif sort == "solved":
@@ -98,10 +125,11 @@ def forums():
 
 @app.route("/forums/<int:forum_id>")
 def forum_detail(forum_id):
-    forum = next((f for f in SAMPLE_FORUMS if f["id"] == forum_id), None)
+    forum = next((f for f in db_forums if f["id"] == forum_id), None)
     if not forum:
         return redirect(url_for("forums"))
-    return render_template("forum_detail.html", forum=forum)
+    comments = db_comments.get(forum_id, [])
+    return render_template("forum_detail.html", forum=forum, comments=comments)
 
 
 @app.route("/panels")
@@ -116,7 +144,7 @@ def events():
 
 @app.route("/members")
 def members():
-    return render_template("members.html", members=SAMPLE_MEMBERS)
+    return render_template("members.html", members=db_members)
 
 
 @app.route("/ai")
@@ -246,6 +274,147 @@ def register_event():
     if not event:
         return jsonify({"error": "Evento no encontrado"}), 404
     return jsonify({"ok": True, "message": f"Registrado en '{event['title']}' ✓"})
+
+
+# ── Comentarios ────────────────────────────────────────────────────────────────
+
+@app.route("/forums/<int:forum_id>/comment", methods=["POST"])
+def add_comment(forum_id):
+    if not session.get("user"):
+        return jsonify({"error": "Debes iniciar sesión"}), 401
+    forum = next((f for f in db_forums if f["id"] == forum_id), None)
+    if not forum:
+        return jsonify({"error": "Foro no encontrado"}), 404
+    text = (request.get_json() or {}).get("text", "").strip()
+    if not text:
+        return jsonify({"error": "El comentario no puede estar vacío"}), 400
+    u = session["user"]
+    from datetime import datetime
+    comment = {
+        "id":        next_comment_id(),
+        "forum_id":  forum_id,
+        "author":    u.get("display") or u["name"],
+        "init":      u["init"],
+        "text":      text,
+        "timestamp": datetime.now().strftime("%d %b %Y, %H:%M"),
+        "votes":     0,
+    }
+    db_comments.setdefault(forum_id, []).append(comment)
+    return jsonify({"ok": True, "comment": comment})
+
+
+@app.route("/forums/<int:forum_id>/comment/<int:comment_id>/vote", methods=["POST"])
+def vote_comment(forum_id, comment_id):
+    if not session.get("user"):
+        return jsonify({"error": "Debes iniciar sesión"}), 401
+    for c in db_comments.get(forum_id, []):
+        if c["id"] == comment_id:
+            c["votes"] += 1
+            return jsonify({"ok": True, "votes": c["votes"]})
+    return jsonify({"error": "Comentario no encontrado"}), 404
+
+
+@app.route("/forums/<int:forum_id>/comment/<int:comment_id>/delete", methods=["POST"])
+def delete_comment(forum_id, comment_id):
+    if not is_admin():
+        return jsonify({"error": "Sin permiso"}), 403
+    if forum_id in db_comments:
+        db_comments[forum_id] = [c for c in db_comments[forum_id]
+                                  if c["id"] != comment_id]
+    return jsonify({"ok": True})
+
+
+# ── Preview Markdown ────────────────────────────────────────────────────────────
+
+@app.route("/api/preview-md", methods=["POST"])
+def preview_md():
+    text = (request.get_json() or {}).get("text", "")
+    return jsonify({"html": render_md(text)})
+
+
+# ── Editor de artículos (admin) ─────────────────────────────────────────────────
+
+@app.route("/admin/articles/new", methods=["GET", "POST"])
+def admin_new_article():
+    if not is_admin():
+        abort(403)
+    if request.method == "POST":
+        data    = request.get_json()
+        article = _build_article(data, next_article_id())
+        db_articles.insert(0, article)
+        return jsonify({"ok": True, "id": article["id"]})
+    return render_template("admin_editor.html", article=None, categories=CATEGORIES)
+
+
+@app.route("/admin/articles/<int:article_id>/edit", methods=["GET", "POST"])
+def admin_edit_article(article_id):
+    if not is_admin():
+        abort(403)
+    art = next((a for a in db_articles if a["id"] == article_id), None)
+    if not art:
+        return redirect(url_for("admin_panel"))
+    if request.method == "POST":
+        data = request.get_json()
+        art.update(_build_article(data, article_id))
+        return jsonify({"ok": True, "id": article_id})
+    return render_template("admin_editor.html", article=art, categories=CATEGORIES)
+
+
+def _build_article(data, article_id):
+    title   = (data.get("title")   or "").strip()
+    excerpt = (data.get("excerpt") or "").strip()
+    content = (data.get("content") or "").strip()
+    cat     = data.get("category", "ia")
+    tags    = [t.strip() for t in (data.get("tags") or "").split(",") if t.strip()]
+    author  = data.get("author", "Administrador").strip() or "Administrador"
+    featured = bool(data.get("featured"))
+    init    = "".join(w[0].upper() for w in author.split()[:2])
+    return {
+        "id": article_id, "category": cat, "featured": featured,
+        "title": title, "excerpt": excerpt, "author": author, "init": init,
+        "read_time": max(1, len(content.split()) // 200),
+        "views": 0, "likes": 0, "comments": 0,
+        "tags": tags, "content": content,
+    }
+
+
+# ── Admin ──────────────────────────────────────────────────────────────────────
+
+@app.route("/admin")
+def admin_panel():
+    if not is_admin():
+        abort(403)
+    return render_template("admin.html",
+                           articles=db_articles,
+                           forums=db_forums,
+                           members=db_members)
+
+
+@app.route("/admin/delete/article/<int:article_id>", methods=["POST"])
+def admin_delete_article(article_id):
+    if not is_admin():
+        abort(403)
+    global articles
+    articles = [a for a in db_articles if a["id"] != article_id]
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/delete/forum/<int:forum_id>", methods=["POST"])
+def admin_delete_forum(forum_id):
+    if not is_admin():
+        abort(403)
+    global forums
+    forums = [f for f in db_forums if f["id"] != forum_id]
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/delete/member/<int:member_id>", methods=["POST"])
+def admin_delete_member(member_id):
+    if not is_admin():
+        abort(403)
+    global db_members
+    db_members = [m for m in db_members if m["id"] != member_id]
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":

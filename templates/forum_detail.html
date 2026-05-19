@@ -2,17 +2,24 @@
 {% block title %}{{ forum.title }} — Foros IDEA{% endblock %}
 {% block content %}
 
-<div style="margin-bottom:16px">
+<div style="margin-bottom:16px;display:flex;gap:8px;align-items:center">
   <a href="{{ url_for('forums') }}" class="btn-ghost btn-sm">← Volver a foros</a>
+  {% if is_admin %}
+  <form method="post" action="/admin/delete/forum/{{ forum.id }}" style="margin-left:auto"
+        onsubmit="return confirm('¿Eliminar este foro?')">
+    <button type="submit" class="btn-delete">🗑 Eliminar foro</button>
+  </form>
+  {% endif %}
 </div>
 
 {% set c = get_cat(forum.category) %}
 
+<!-- Pregunta principal -->
 <div class="card" style="margin-bottom:16px">
-  <div style="display:flex;align-items:flex-start;gap:16px">
-    <div class="vote-box" style="min-width:56px;text-align:center">
-      <div class="vote-count" style="font-size:22px">{{ forum.votes }}</div>
-      <div class="vote-label">votos</div>
+  <div style="display:flex;gap:16px;padding:18px">
+    <div style="text-align:center;min-width:56px">
+      <div style="font-size:22px;font-weight:700;color:var(--accent)">{{ forum.votes }}</div>
+      <div style="font-size:11px;color:var(--text3)">votos</div>
     </div>
     <div style="flex:1">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
@@ -21,81 +28,166 @@
         <span style="color:#0f766e;font-weight:600;font-size:13px">✓ Resuelto</span>
         {% endif %}
       </div>
-      <h1 style="font-size:18px;font-weight:700;margin:0 0 10px">{{ forum.title }}</h1>
+      <h1 style="font-size:18px;font-weight:700;margin:0 0 10px;line-height:1.3">{{ forum.title }}</h1>
       <div class="tags-row" style="margin-bottom:12px">
-        {% for tag in forum.tags %}
-        <span class="tag-chip">#{{ tag }}</span>
-        {% endfor %}
+        {% for tag in forum.tags %}<span class="tag-chip">#{{ tag }}</span>{% endfor %}
       </div>
-      <p style="color:var(--text2);font-size:14px;line-height:1.6;margin:0">
-        Esta es una discusión activa de la comunidad IDEA. Participa aportando tu perspectiva
-        y experiencia técnica.
-      </p>
-      <div class="meta" style="margin-top:12px">
-        <div class="avatar avatar-sm" style="background:{{ c.color }}">U</div>
-        <span style="font-size:13px">Comunidad IDEA · 💬 {{ forum.answers }} respuestas · 👁 {{ "{:,}".format(forum.views) }} vistas</span>
+      {% if forum.body %}
+      <p style="color:var(--text2);font-size:14px;line-height:1.7;margin:0">{{ forum.body }}</p>
+      {% endif %}
+      <div class="meta" style="margin-top:14px">
+        <div class="avatar avatar-sm" style="background:{{ c.color }}">{{ forum.init }}</div>
+        <span style="font-size:13px;color:var(--text3)">
+          {{ forum.author }} · 👁 {{ "{:,}".format(forum.views) }} vistas
+        </span>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Respuestas placeholder -->
-<h2 style="font-size:15px;font-weight:700;margin-bottom:12px">{{ forum.answers }} Respuestas</h2>
+<!-- Contador de comentarios -->
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+  <h2 style="font-size:15px;font-weight:700;margin:0">
+    💬 <span id="commentCount">{{ comments|length }}</span> Respuesta{{ 's' if comments|length != 1 }}
+  </h2>
+</div>
 
-{% for i in range([forum.answers, 3]|min) %}
-{% set colors = ['#1d4ed8','#15803d','#b45309'] %}
-{% set inits  = ['AN', 'ML', 'JP'] %}
-{% set names  = ['Ana Núñez', 'Marco López', 'Juan P.'] %}
-<div class="card" style="margin-bottom:12px">
-  <div style="display:flex;gap:14px">
-    <div style="text-align:center;min-width:48px">
-      <div style="font-size:18px;font-weight:700;color:var(--accent)">{{ (i+1)*7 + 3 }}</div>
-      <div style="font-size:11px;color:var(--text3)">votos</div>
-      {% if i == 0 and forum.solved %}
-      <div style="color:#0f766e;font-size:18px;margin-top:4px" title="Respuesta aceptada">✓</div>
+<!-- Lista de comentarios -->
+<div id="commentsList">
+{% for cm in comments %}
+<div class="comment-card" id="comment-{{ cm.id }}">
+  <div class="comment-vote">
+    <button class="vote-up-btn" onclick="voteComment({{ forum.id }}, {{ cm.id }}, this)"
+            title="Votar útil">▲</button>
+    <span class="comment-votes" id="votes-{{ cm.id }}">{{ cm.votes }}</span>
+  </div>
+  <div class="comment-body">
+    <div class="comment-text">{{ cm.text }}</div>
+    <div class="comment-meta">
+      <div class="avatar avatar-sm" style="background:var(--purple)">{{ cm.init }}</div>
+      <span>{{ cm.author }}</span>
+      <span style="color:var(--text3)">· {{ cm.timestamp }}</span>
+      {% if is_admin %}
+      <button class="btn-delete" style="margin-left:auto;padding:2px 8px;font-size:11px"
+              onclick="deleteComment({{ forum.id }}, {{ cm.id }})">🗑</button>
       {% endif %}
     </div>
-    <div style="flex:1">
-      <p style="color:var(--text2);font-size:14px;line-height:1.6;margin:0 0 10px">
-        {% if i == 0 %}
-        Esta es una excelente pregunta. La solución más efectiva que he encontrado involucra
-        revisar la configuración base y aplicar las mejores prácticas del sector.
-        La clave está en entender el contexto antes de implementar cualquier cambio.
-        {% elif i == 1 %}
-        Complementando la respuesta anterior: también vale la pena considerar el impacto
-        en el rendimiento. En mis proyectos he visto mejoras significativas al optimizar
-        este aspecto específico del flujo de trabajo.
-        {% else %}
-        Comparto recursos adicionales que me ayudaron con este problema. La documentación
-        oficial tiene ejemplos muy claros y hay tutoriales de la comunidad que explican
-        los casos borde más comunes.
-        {% endif %}
-      </p>
-      <div class="meta">
-        <div class="avatar avatar-sm" style="background:{{ colors[i] }}">{{ inits[i] }}</div>
-        <span style="font-size:12px;color:var(--text3)">{{ names[i] }}</span>
-      </div>
-    </div>
   </div>
+</div>
+{% else %}
+<div id="emptyComments" class="empty-state" style="padding:24px">
+  <div style="font-size:32px;margin-bottom:8px">💬</div>
+  <p>Sé el primero en responder</p>
 </div>
 {% endfor %}
+</div>
 
-<!-- Responder -->
-<div class="card" style="margin-top:20px;padding:16px">
+<!-- Formulario de respuesta -->
+<div class="card" style="margin-top:20px;padding:18px" id="replySection">
   <h3 style="font-size:14px;font-weight:700;margin:0 0 12px">Tu respuesta</h3>
-  {% if session.user %}
-  <textarea class="search-input" rows="4" placeholder="Escribe tu respuesta…"
-            style="width:100%;resize:vertical;font-family:inherit;margin-bottom:10px"></textarea>
-  <div style="display:flex;gap:8px">
-    <button class="btn-primary btn-sm" onclick="showToast('Función próximamente disponible')">Publicar respuesta</button>
-    <a href="{{ url_for('ai_hub', text=forum.title) }}"
-       class="btn-ghost btn-sm">✦ Ayuda con IA</a>
+  {% if user %}
+  <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">
+    <div class="avatar avatar-sm" style="background:var(--purple)">{{ user.init }}</div>
+    <span style="font-size:13px;font-weight:600">{{ user.display or user.name }}</span>
+  </div>
+  <textarea id="commentInput" class="search-input" rows="4"
+            placeholder="Escribe tu respuesta… (sé específico y constructivo)"
+            style="resize:vertical;margin-bottom:10px"></textarea>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button class="btn-primary" onclick="submitComment({{ forum.id }})">
+      Publicar respuesta
+    </button>
+    <a href="{{ url_for('ai_hub', text=forum.title) }}" class="btn-ghost btn-sm">
+      ✦ Ayuda con IA
+    </a>
+    <span id="commentError" style="color:var(--accent);font-size:13px"></span>
   </div>
   {% else %}
-  <div style="color:var(--text3);font-size:13px">
-    <a href="#" onclick="requireAuth('para responder en los foros')" style="color:var(--accent)">Únete gratis</a>
-    para responder en los foros.
-  </div>
+  <p style="color:var(--text3);font-size:13px">
+    <a href="#" onclick="requireAuth('para responder en los foros')"
+       style="color:var(--accent);font-weight:600">Únete gratis</a>
+    para responder en este foro.
+  </p>
   {% endif %}
 </div>
+
+<script>
+async function submitComment(forumId) {
+  const input = document.getElementById('commentInput');
+  const text  = input.value.trim();
+  const errEl = document.getElementById('commentError');
+  errEl.textContent = '';
+
+  if (!text) { errEl.textContent = 'Escribe algo antes de publicar'; return; }
+
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Publicando…';
+
+  try {
+    const r = await fetch(`/forums/${forumId}/comment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    const data = await r.json();
+    if (!r.ok) { errEl.textContent = data.error; return; }
+
+    // Ocultar empty state si existe
+    const empty = document.getElementById('emptyComments');
+    if (empty) empty.remove();
+
+    // Insertar nuevo comentario
+    const cm = data.comment;
+    const div = document.createElement('div');
+    div.className = 'comment-card';
+    div.id = `comment-${cm.id}`;
+    div.innerHTML = `
+      <div class="comment-vote">
+        <button class="vote-up-btn" onclick="voteComment(${forumId}, ${cm.id}, this)">▲</button>
+        <span class="comment-votes" id="votes-${cm.id}">0</span>
+      </div>
+      <div class="comment-body">
+        <div class="comment-text">${cm.text.replace(/</g,'&lt;')}</div>
+        <div class="comment-meta">
+          <div class="avatar avatar-sm" style="background:var(--purple)">${cm.init}</div>
+          <span>${cm.author}</span>
+          <span style="color:var(--text3)">· ${cm.timestamp}</span>
+        </div>
+      </div>`;
+    document.getElementById('commentsList').appendChild(div);
+
+    // Actualizar contador
+    const cnt = document.getElementById('commentCount');
+    cnt.textContent = parseInt(cnt.textContent) + 1;
+    input.value = '';
+    div.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showToast('Respuesta publicada ✓');
+  } catch { errEl.textContent = 'Error de conexión'; }
+  finally { btn.disabled = false; btn.textContent = 'Publicar respuesta'; }
+}
+
+async function voteComment(forumId, commentId, btn) {
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/forums/${forumId}/comment/${commentId}/vote`, { method: 'POST' });
+    const data = await r.json();
+    if (data.ok) {
+      document.getElementById(`votes-${commentId}`).textContent = data.votes;
+      btn.style.color = 'var(--accent)';
+    }
+  } catch {}
+}
+
+async function deleteComment(forumId, commentId) {
+  if (!confirm('¿Eliminar este comentario?')) return;
+  const r = await fetch(`/forums/${forumId}/comment/${commentId}/delete`, { method: 'POST' });
+  const data = await r.json();
+  if (data.ok) {
+    document.getElementById(`comment-${commentId}`).remove();
+    const cnt = document.getElementById('commentCount');
+    cnt.textContent = Math.max(0, parseInt(cnt.textContent) - 1);
+    showToast('Comentario eliminado');
+  }
+}
+</script>
 {% endblock %}
