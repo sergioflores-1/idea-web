@@ -53,7 +53,13 @@ def get_cat(cat_id):
                  "color": "#666", "bg": "#eee"})
 
 def render_md(text: str) -> str:
-    return md.markdown(text or "", extensions=["fenced_code", "tables", "nl2br"])
+    """Render Markdown or pass through HTML (from visual editor)."""
+    if not text:
+        return ""
+    stripped = text.strip()
+    if stripped.startswith("<") and stripped != "<p><br></p>":
+        return stripped   # Ya es HTML del editor visual
+    return md.markdown(stripped, extensions=["fenced_code", "tables", "nl2br"])
 
 # ── DB initialisation & seed ───────────────────────────────────────────────────
 

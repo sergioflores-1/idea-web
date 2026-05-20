@@ -75,30 +75,41 @@
   <!-- ── Columna derecha: editor de contenido ── -->
   <div class="editor-content-col">
     <div class="card" style="padding:0;overflow:hidden">
-      <!-- Tabs -->
-      <div class="editor-tabs">
-        <button class="editor-tab active" id="tabEdit" onclick="switchTab('edit')">✏️ Escribir</button>
-        <button class="editor-tab" id="tabPreview" onclick="switchTab('preview')">👁 Vista previa</button>
-        <span style="margin-left:auto;font-size:11px;color:var(--text3);padding-right:12px;align-self:center">
-          Markdown soportado
-        </span>
+
+      <!-- Tabs principales + selector de modo -->
+      <div class="editor-tabs" style="flex-wrap:wrap;gap:4px">
+        <button class="editor-tab active" id="tabEdit"    onclick="switchTab('edit')">✏️ Escribir</button>
+        <button class="editor-tab"        id="tabPreview" onclick="switchTab('preview')">👁 Vista previa</button>
+        <span style="flex:1"></span>
+        <!-- Toggle modo visual / markdown -->
+        <div style="display:flex;align-items:center;gap:6px;padding:0 12px;font-size:12px">
+          <span style="color:var(--text3)">Modo:</span>
+          <button id="modeVisual" class="btn-primary btn-sm" onclick="setMode('visual')"
+                  style="padding:2px 10px;font-size:11px">🖊 Visual</button>
+          <button id="modeMarkdown" class="btn-ghost btn-sm" onclick="setMode('markdown')"
+                  style="padding:2px 10px;font-size:11px">⌨ Markdown</button>
+        </div>
       </div>
 
-      <!-- Editor -->
+      <!-- Editor visual (Quill) -->
       <div id="panelEdit">
-        <textarea id="artContent" class="editor-textarea"
-                  placeholder="# Título de sección&#10;&#10;Escribe el contenido en **Markdown**...&#10;&#10;## Subtítulo&#10;&#10;- Elemento 1&#10;- Elemento 2&#10;&#10;```python&#10;print('Hola IDEA')&#10;```">{{ article.content if article else '' }}</textarea>
+        <div id="quillEditor" style="min-height:380px;font-size:14px;color:var(--text)"></div>
+
+        <!-- Editor Markdown (oculto por defecto) -->
+        <textarea id="artContent" class="editor-textarea" style="display:none"
+                  placeholder="# Título&#10;&#10;Escribe en **Markdown**..."></textarea>
+
         <div class="editor-footer">
           <span id="wordCount" style="color:var(--text3);font-size:12px">0 palabras</span>
           <span style="color:var(--text3);font-size:12px">· Tiempo estimado: <span id="readTime">0</span> min</span>
         </div>
       </div>
 
-      <!-- Preview -->
+      <!-- Vista previa -->
       <div id="panelPreview" style="display:none">
         <div id="previewContent" class="prose"
              style="padding:20px;min-height:400px;color:var(--text2);font-size:14px">
-          <em style="color:var(--text3)">Haz clic en "Vista previa" para renderizar el contenido.</em>
+          <em style="color:var(--text3)">Haz clic en "Vista previa" para renderizar.</em>
         </div>
       </div>
     </div>
@@ -150,8 +161,8 @@
       </div>
     </details>
 
-    <!-- Referencia Markdown -->
-    <details class="markdown-help" style="margin-top:6px">
+    <!-- Referencia Markdown (solo visible en modo markdown) -->
+    <details class="markdown-help" style="margin-top:6px" id="mdHelpBlock">
       <summary>📖 Referencia rápida de Markdown</summary>
       <div class="markdown-help-body">
         <div class="md-row"><code># Título</code><span>Encabezado H1</span></div>
@@ -169,9 +180,94 @@
   </div>
 </div>
 
-<script>
-const ARTICLE_ID = {{ article.id if article else 'null' }};
+<!-- Quill CDN -->
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 
+<script>
+const ARTICLE_ID    = {{ article.id if article else 'null' }};
+const INITIAL_CONTENT = {{ (article.content or '')|tojson if article else '""' }};
+let   currentMode   = 'visual';   // 'visual' | 'markdown'
+let   quill         = null;
+
+// ── Quill init ────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  quill = new Quill('#quillEditor', {
+    theme: 'snow',
+    placeholder: 'Escribe tu artículo aquí…',
+    modules: {
+      toolbar: [
+        [{ header: [2, 3, false] }],
+        ['bold', 'italic', 'underline'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link', 'blockquote', 'code-block'],
+        ['clean'],
+      ],
+    },
+  });
+
+  // Adaptar colores al tema oscuro del blog
+  const editor = document.querySelector('.ql-editor');
+  if (editor) editor.style.color = 'var(--text)';
+
+  // Cargar contenido existente
+  if (INITIAL_CONTENT) {
+    if (INITIAL_CONTENT.trim().startsWith('<')) {
+      quill.root.innerHTML = INITIAL_CONTENT;   // HTML (guardado visual)
+    } else {
+      // Markdown → texto plano en Quill (usuario podrá ver y editar)
+      quill.setText(INITIAL_CONTENT);
+    }
+  }
+
+  // Contador de palabras
+  quill.on('text-change', updateWordCount);
+  document.getElementById('artContent').addEventListener('input', updateWordCount);
+  updateWordCount();
+
+  // Ocultar referencia Markdown por defecto
+  document.getElementById('mdHelpBlock').style.display = 'none';
+});
+
+function updateWordCount() {
+  const text = currentMode === 'visual'
+    ? (quill ? quill.getText() : '')
+    : document.getElementById('artContent').value;
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  const mins  = Math.max(1, Math.round(words / 200));
+  document.getElementById('wordCount').textContent = `${words.toLocaleString()} palabras`;
+  document.getElementById('readTime').textContent  = mins;
+}
+
+// ── Modo visual / markdown ────────────────────────────────────────────────────
+function setMode(mode) {
+  if (mode === currentMode) return;
+
+  if (mode === 'markdown') {
+    // Pasar HTML de Quill → textarea (como texto plano para editar)
+    const html = quill.root.innerHTML.trim();
+    const plain = html === '<p><br></p>' ? '' : html;
+    document.getElementById('artContent').value = plain;
+    document.getElementById('quillEditor').style.display = 'none';
+    document.getElementById('artContent').style.display  = '';
+    document.getElementById('mdHelpBlock').style.display = '';
+    document.getElementById('modeVisual').className   = 'btn-ghost   btn-sm';
+    document.getElementById('modeMarkdown').className = 'btn-primary btn-sm';
+  } else {
+    // Pasar textarea → Quill
+    const raw = document.getElementById('artContent').value;
+    quill.root.innerHTML = raw || '';
+    document.getElementById('quillEditor').style.display = '';
+    document.getElementById('artContent').style.display  = 'none';
+    document.getElementById('mdHelpBlock').style.display = 'none';
+    document.getElementById('modeVisual').className   = 'btn-primary btn-sm';
+    document.getElementById('modeMarkdown').className = 'btn-ghost   btn-sm';
+  }
+  currentMode = mode;
+  updateWordCount();
+}
+
+// ── Tabs escribir / vista previa ──────────────────────────────────────────────
 function switchTab(tab) {
   const isEdit = tab === 'edit';
   document.getElementById('panelEdit').style.display    = isEdit ? '' : 'none';
@@ -182,14 +278,19 @@ function switchTab(tab) {
 }
 
 async function loadPreview() {
-  const text = document.getElementById('artContent').value;
-  const box  = document.getElementById('previewContent');
+  const content = getContent();
+  const box     = document.getElementById('previewContent');
   box.innerHTML = '<em style="color:var(--text3)">Renderizando…</em>';
+  // Si es HTML (modo visual), mostrarlo directamente
+  if (content.trim().startsWith('<') && content.trim() !== '<p><br></p>') {
+    box.innerHTML = content;
+    return;
+  }
   try {
     const r    = await fetch('/api/preview-md', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text: content }),
     });
     const data = await r.json();
     box.innerHTML = data.html || '<em style="color:var(--text3)">Sin contenido aún.</em>';
@@ -198,23 +299,21 @@ async function loadPreview() {
   }
 }
 
-document.getElementById('artContent').addEventListener('input', function () {
-  const words = this.value.trim().split(/\s+/).filter(Boolean).length;
-  const mins  = Math.max(1, Math.round(words / 200));
-  document.getElementById('wordCount').textContent = `${words.toLocaleString()} palabras`;
-  document.getElementById('readTime').textContent  = mins;
-});
+function getContent() {
+  if (currentMode === 'visual') {
+    const html = quill ? quill.root.innerHTML.trim() : '';
+    return html === '<p><br></p>' ? '' : html;
+  }
+  return document.getElementById('artContent').value.trim();
+}
 
-window.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('artContent').dispatchEvent(new Event('input'));
-});
-
+// ── Guardar ───────────────────────────────────────────────────────────────────
 async function saveArticle() {
   const errEl   = document.getElementById('editorError');
   errEl.textContent = '';
   const title   = document.getElementById('artTitle').value.trim();
   const excerpt = document.getElementById('artExcerpt').value.trim();
-  const content = document.getElementById('artContent').value.trim();
+  const content = getContent();
   if (!title)   { errEl.textContent = 'El título es obligatorio'; return; }
   if (!excerpt) { errEl.textContent = 'El extracto es obligatorio'; return; }
   if (!content) { errEl.textContent = 'El contenido no puede estar vacío'; return; }
@@ -229,8 +328,7 @@ async function saveArticle() {
 
   const url = ARTICLE_ID ? `/articles/${ARTICLE_ID}/edit` : '/articles/new';
   const btn = event.target;
-  btn.disabled = true;
-  btn.textContent = 'Guardando…';
+  btn.disabled = true; btn.textContent = 'Guardando…';
 
   try {
     const r    = await fetch(url, {
@@ -333,10 +431,20 @@ async function formatWithAI() {
 
 function usePdfText(mode) {
   const extracted = document.getElementById('pdfExtracted').value;
-  const area      = document.getElementById('artContent');
-  area.value = mode === 'replace' ? extracted
-                                  : area.value + (area.value ? '\n\n' : '') + extracted;
-  area.dispatchEvent(new Event('input'));
+  if (currentMode === 'visual' && quill) {
+    if (mode === 'replace') {
+      quill.setText(extracted);
+    } else {
+      const len = quill.getLength();
+      quill.insertText(len - 1, '\n\n' + extracted);
+    }
+  } else {
+    const area = document.getElementById('artContent');
+    area.value = mode === 'replace' ? extracted
+                                    : area.value + (area.value ? '\n\n' : '') + extracted;
+    area.dispatchEvent(new Event('input'));
+  }
+  updateWordCount();
   showToast('Contenido cargado en el editor ✓');
   document.getElementById('pdfSection').open = false;
 }
