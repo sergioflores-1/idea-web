@@ -394,6 +394,57 @@ def preview_md():
     text = (request.get_json() or {}).get("text", "")
     return jsonify({"html": render_md(text)})
 
+
+# ── Extracción de PDF ──────────────────────────────────────────────────────────
+
+@app.route("/api/extract-pdf", methods=["POST"])
+def extract_pdf():
+    if not is_admin():
+        return jsonify({"error": "Sin permiso"}), 403
+
+    import pdfplumber, io, tempfile, os as _os
+
+    def _pdf_to_text(file_bytes: bytes) -> str:
+        text_parts = []
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            for page in pdf.pages:
+                t = page.extract_text()
+                if t:
+                    text_parts.append(t.strip())
+        return "\n\n".join(text_parts)
+
+    # ── Desde URL ────────────────────────────────────────────────────────────
+    if request.is_json:
+        url = (request.get_json() or {}).get("url", "").strip()
+        if not url:
+            return jsonify({"error": "URL vacía"}), 400
+        try:
+            resp = requests.get(url, timeout=30,
+                                headers={"User-Agent": "Mozilla/5.0"})
+            resp.raise_for_status()
+            if "pdf" not in resp.headers.get("Content-Type", "").lower() \
+                    and not url.lower().endswith(".pdf"):
+                return jsonify({"error": "La URL no parece ser un PDF"}), 400
+            text = _pdf_to_text(resp.content)
+            return jsonify({"ok": True, "text": text,
+                            "pages": len(text.split("\n\n"))})
+        except requests.exceptions.RequestException as e:
+            return jsonify({"error": f"No se pudo descargar: {e}"}), 400
+        except Exception as e:
+            return jsonify({"error": f"Error al leer PDF: {e}"}), 500
+
+    # ── Desde archivo subido ─────────────────────────────────────────────────
+    file = request.files.get("pdf")
+    if not file:
+        return jsonify({"error": "No se recibió archivo"}), 400
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "Solo se aceptan archivos PDF"}), 400
+    try:
+        text = _pdf_to_text(file.read())
+        return jsonify({"ok": True, "text": text})
+    except Exception as e:
+        return jsonify({"error": f"Error al leer PDF: {e}"}), 500
+
 # ── Comentarios ────────────────────────────────────────────────────────────────
 
 @app.route("/forums/<int:forum_id>/comment", methods=["POST"])

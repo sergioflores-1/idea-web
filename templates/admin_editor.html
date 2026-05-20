@@ -110,8 +110,54 @@
       </div>
     </div>
 
+    <!-- Carga desde PDF -->
+    <details class="markdown-help" style="margin-top:10px" id="pdfSection">
+      <summary>📄 Importar contenido desde PDF</summary>
+      <div class="markdown-help-body" style="padding:14px">
+
+        <!-- Tabs URL / Archivo -->
+        <div style="display:flex;gap:6px;margin-bottom:12px">
+          <button id="pdfTabUrl"  class="btn-primary btn-sm"  onclick="switchPdfTab('url')">🌐 Desde URL</button>
+          <button id="pdfTabFile" class="btn-ghost  btn-sm"   onclick="switchPdfTab('file')">📁 Desde archivo</button>
+        </div>
+
+        <!-- URL -->
+        <div id="pdfPanelUrl">
+          <div style="display:flex;gap:8px">
+            <input type="url" id="pdfUrl" class="editor-input"
+                   placeholder="https://ejemplo.com/documento.pdf"
+                   style="flex:1;font-size:13px">
+            <button class="btn-primary btn-sm" onclick="extractPdfUrl()">Extraer</button>
+          </div>
+        </div>
+
+        <!-- Archivo local -->
+        <div id="pdfPanelFile" style="display:none">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="file" id="pdfFile" accept=".pdf"
+                   style="flex:1;font-size:13px;color:var(--text2)">
+            <button class="btn-primary btn-sm" onclick="extractPdfFile()">Extraer</button>
+          </div>
+        </div>
+
+        <div id="pdfStatus" style="margin-top:10px;font-size:13px;color:var(--text3)"></div>
+
+        <div id="pdfPreview" style="display:none;margin-top:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:600;color:var(--text2)">Texto extraído — edita antes de usar</span>
+            <div style="display:flex;gap:6px">
+              <button class="btn-primary btn-sm" onclick="usePdfText('replace')">↩ Reemplazar contenido</button>
+              <button class="btn-ghost   btn-sm" onclick="usePdfText('append')">+ Agregar al final</button>
+            </div>
+          </div>
+          <textarea id="pdfExtracted" class="editor-textarea"
+                    style="height:200px;font-size:12px"></textarea>
+        </div>
+      </div>
+    </details>
+
     <!-- Ayuda Markdown -->
-    <details class="markdown-help" style="margin-top:10px">
+    <details class="markdown-help" style="margin-top:6px">
       <summary>📖 Referencia rápida de Markdown</summary>
       <div class="markdown-help-body">
         <div class="md-row"><code># Título</code><span>Encabezado H1</span></div>
@@ -213,6 +259,71 @@ async function saveArticle() {
     }
   } catch { errEl.textContent = 'Error de conexión'; }
   finally { btn.disabled = false; btn.textContent = ARTICLE_ID ? '💾 Guardar cambios' : '🚀 Publicar artículo'; }
+}
+
+// ── PDF import ────────────────────────────────────────────────────────────────
+function switchPdfTab(tab) {
+  const isUrl = tab === 'url';
+  document.getElementById('pdfPanelUrl').style.display  = isUrl ? '' : 'none';
+  document.getElementById('pdfPanelFile').style.display = isUrl ? 'none' : '';
+  document.getElementById('pdfTabUrl').className  = isUrl ? 'btn-primary btn-sm' : 'btn-ghost btn-sm';
+  document.getElementById('pdfTabFile').className = isUrl ? 'btn-ghost btn-sm'   : 'btn-primary btn-sm';
+  document.getElementById('pdfStatus').textContent = '';
+  document.getElementById('pdfPreview').style.display = 'none';
+}
+
+function _showPdfResult(data) {
+  const status = document.getElementById('pdfStatus');
+  if (!data.ok) { status.style.color = 'var(--accent)'; status.textContent = data.error || 'Error'; return; }
+  status.style.color = 'var(--text3)';
+  status.textContent = `✓ Texto extraído (${data.text.split(/\s+/).length.toLocaleString()} palabras)`;
+  document.getElementById('pdfExtracted').value = data.text;
+  document.getElementById('pdfPreview').style.display = '';
+}
+
+async function extractPdfUrl() {
+  const url = document.getElementById('pdfUrl').value.trim();
+  const status = document.getElementById('pdfStatus');
+  if (!url) { status.textContent = 'Ingresa una URL'; return; }
+  status.style.color = 'var(--text3)';
+  status.textContent = 'Descargando y extrayendo…';
+  document.getElementById('pdfPreview').style.display = 'none';
+  try {
+    const r    = await fetch('/api/extract-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    _showPdfResult(await r.json());
+  } catch { status.style.color='var(--accent)'; status.textContent = 'Error de conexión'; }
+}
+
+async function extractPdfFile() {
+  const fileInput = document.getElementById('pdfFile');
+  const status    = document.getElementById('pdfStatus');
+  if (!fileInput.files.length) { status.textContent = 'Selecciona un archivo PDF'; return; }
+  status.style.color = 'var(--text3)';
+  status.textContent = 'Procesando PDF…';
+  document.getElementById('pdfPreview').style.display = 'none';
+  const form = new FormData();
+  form.append('pdf', fileInput.files[0]);
+  try {
+    const r    = await fetch('/api/extract-pdf', { method: 'POST', body: form });
+    _showPdfResult(await r.json());
+  } catch { status.style.color='var(--accent)'; status.textContent = 'Error de conexión'; }
+}
+
+function usePdfText(mode) {
+  const extracted = document.getElementById('pdfExtracted').value;
+  const area      = document.getElementById('artContent');
+  if (mode === 'replace') {
+    area.value = extracted;
+  } else {
+    area.value = area.value + (area.value ? '\n\n' : '') + extracted;
+  }
+  area.dispatchEvent(new Event('input'));   // actualiza contador de palabras
+  showToast('Contenido cargado en el editor ✓');
+  document.getElementById('pdfSection').open = false;
 }
 </script>
 {% endblock %}

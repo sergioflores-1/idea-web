@@ -27,7 +27,7 @@
   {% if session.user %}
   <button class="btn-primary btn-sm panel-join-btn"
           data-id="{{ panel.id }}"
-          onclick="joinPanel({{ panel.id }}, this)">
+          onclick="joinPanel('{{ panel.id }}', this)">
     + Unirse al panel
   </button>
   {% else %}
