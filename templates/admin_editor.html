@@ -143,9 +143,14 @@
         <div id="pdfStatus" style="margin-top:10px;font-size:13px;color:var(--text3)"></div>
 
         <div id="pdfPreview" style="display:none;margin-top:12px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px">
             <span style="font-size:12px;font-weight:600;color:var(--text2)">Texto extraído — edita antes de usar</span>
-            <div style="display:flex;gap:6px">
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn-ghost btn-sm" id="btnFormatAI"
+                      onclick="formatWithAI()"
+                      style="color:var(--gold);border-color:var(--gold)">
+                ✦ Formatear con IA
+              </button>
               <button class="btn-primary btn-sm" onclick="usePdfText('replace')">↩ Reemplazar contenido</button>
               <button class="btn-ghost   btn-sm" onclick="usePdfText('append')">+ Agregar al final</button>
             </div>
@@ -311,6 +316,41 @@ async function extractPdfFile() {
     const r    = await fetch('/api/extract-pdf', { method: 'POST', body: form });
     _showPdfResult(await r.json());
   } catch { status.style.color='var(--accent)'; status.textContent = 'Error de conexión'; }
+}
+
+async function formatWithAI() {
+  const extracted = document.getElementById('pdfExtracted');
+  const btn       = document.getElementById('btnFormatAI');
+  const status    = document.getElementById('pdfStatus');
+  if (!extracted.value.trim()) { status.textContent = 'No hay texto para formatear'; return; }
+
+  btn.disabled = true;
+  btn.textContent = '✦ Formateando…';
+  status.style.color = 'var(--text3)';
+  status.textContent = 'Claude está estructurando el texto en Markdown…';
+
+  try {
+    const r    = await fetch('/api/format-md', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: extracted.value }),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      extracted.value = data.text;
+      status.textContent = '✓ Texto formateado en Markdown por IA';
+      showToast('Formato aplicado ✓');
+    } else {
+      status.style.color = 'var(--accent)';
+      status.textContent = data.error || 'Error al formatear';
+    }
+  } catch {
+    status.style.color = 'var(--accent)';
+    status.textContent = 'Error de conexión';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✦ Formatear con IA';
+  }
 }
 
 function usePdfText(mode) {

@@ -17,6 +17,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "idea-blog-dev-secret-2025")
 
 ADMIN_EMAIL   = os.environ.get("ADMIN_EMAIL", "sflores@alumni.stanford.edu")
 CONTACT_EMAIL = ADMIN_EMAIL
+CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///idea.db")
 if DATABASE_URL.startswith("postgres://"):
@@ -393,6 +394,58 @@ def register_event():
 def preview_md():
     text = (request.get_json() or {}).get("text", "")
     return jsonify({"html": render_md(text)})
+
+
+# ── Formatear texto con Claude (server-side) ──────────────────────────────────
+
+@app.route("/api/format-md", methods=["POST"])
+def format_md():
+    if not is_admin():
+        return jsonify({"error": "Sin permiso"}), 403
+    if not CLAUDE_API_KEY:
+        return jsonify({"error": "Configura CLAUDE_API_KEY en las variables de entorno de Railway"}), 503
+
+    text = (request.get_json() or {}).get("text", "").strip()
+    if not text:
+        return jsonify({"error": "Texto vacío"}), 400
+
+    system_prompt = (
+        "Eres un editor técnico experto. Tu tarea es convertir texto plano "
+        "extraído de un PDF en Markdown bien estructurado para un blog tecnológico. "
+        "Reglas: usa # y ## para encabezados, **negrita** para términos clave, "
+        "listas con - cuando corresponda, bloques de código con ``` si hay código, "
+        "y > para citas. Conserva todo el contenido original sin resumirlo. "
+        "Devuelve SOLO el texto en Markdown, sin explicaciones adicionales."
+    )
+
+    try:
+        resp = requests.post(
+            CLAUDE_API_URL,
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": CLAUDE_API_KEY,
+                "anthropic-version": "2023-06-01",
+            },
+            json={
+                "model": CLAUDE_MODEL,
+                "max_tokens": 4096,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": text}],
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        md_text = result["content"][0]["text"]
+        return jsonify({"ok": True, "text": md_text})
+    except requests.exceptions.HTTPError as e:
+        try:
+            msg = e.response.json().get("error", {}).get("message", str(e))
+        except Exception:
+            msg = str(e)
+        return jsonify({"error": msg}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ── Extracción de PDF ──────────────────────────────────────────────────────────
