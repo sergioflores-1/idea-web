@@ -4,6 +4,11 @@
 
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
   <h1 style="font-size:20px;font-weight:700;margin:0">📰 Artículos</h1>
+  {% if user %}
+  <a href="{{ url_for('user_new_article') }}" class="btn-primary btn-sm" style="margin-left:auto">
+    ✚ Escribir artículo
+  </a>
+  {% endif %}
   <a href="{{ url_for('articles') }}"
      class="filter-pill {{ 'active' if cat == 'all' else '' }}">📋 Todos</a>
   {% for c in categories %}

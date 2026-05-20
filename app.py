@@ -400,8 +400,8 @@ def preview_md():
 
 @app.route("/api/format-md", methods=["POST"])
 def format_md():
-    if not is_admin():
-        return jsonify({"error": "Sin permiso"}), 403
+    if not session.get("user"):
+        return jsonify({"error": "Debes iniciar sesión"}), 401
     if not CLAUDE_API_KEY:
         return jsonify({"error": "Configura CLAUDE_API_KEY en las variables de entorno de Railway"}), 503
 
@@ -452,8 +452,8 @@ def format_md():
 
 @app.route("/api/extract-pdf", methods=["POST"])
 def extract_pdf():
-    if not is_admin():
-        return jsonify({"error": "Sin permiso"}), 403
+    if not session.get("user"):
+        return jsonify({"error": "Debes iniciar sesión"}), 401
 
     import pdfplumber, io, tempfile, os as _os
 
@@ -551,6 +551,44 @@ def delete_comment(forum_id, comment_id):
         db.session.commit()
     return jsonify({"ok": True})
 
+# ── Editor de artículos (usuarios registrados) ────────────────────────────────
+
+@app.route("/articles/new", methods=["GET", "POST"])
+def user_new_article():
+    if not session.get("user"):
+        return redirect(url_for("articles"))
+    if is_admin():
+        return redirect(url_for("admin_new_article"))
+    if request.method == "POST":
+        data    = request.get_json() or {}
+        article = _build_article_from_data(data, session["user"])
+        db.session.add(article)
+        db.session.commit()
+        return jsonify({"ok": True, "id": article.id})
+    return render_template("article_editor.html",
+                           article=None, categories=CATEGORIES)
+
+
+@app.route("/articles/<int:article_id>/edit", methods=["GET", "POST"])
+def user_edit_article(article_id):
+    if not session.get("user"):
+        return redirect(url_for("articles"))
+    art = Article.query.get(article_id)
+    if not art:
+        return redirect(url_for("articles"))
+    # Solo puede editar el propio autor (por nombre) o el admin
+    u = session["user"]
+    if not is_admin() and art.author != u.get("name") and art.author != u.get("display"):
+        abort(403)
+    if request.method == "POST":
+        data = request.get_json() or {}
+        _update_article_from_data(art, data)
+        db.session.commit()
+        return jsonify({"ok": True, "id": article_id})
+    return render_template("article_editor.html",
+                           article=art, categories=CATEGORIES)
+
+
 # ── Editor de artículos (admin) ────────────────────────────────────────────────
 
 @app.route("/admin/articles/new", methods=["GET", "POST"])
@@ -583,15 +621,19 @@ def admin_edit_article(article_id):
                            article=art, categories=CATEGORIES)
 
 
-def _build_article_from_data(data) -> Article:
+def _build_article_from_data(data, current_user=None) -> Article:
     title    = (data.get("title")   or "").strip()
     excerpt  = (data.get("excerpt") or "").strip()
     content  = (data.get("content") or "").strip()
     category = data.get("category", "ia")
-    author   = (data.get("author")  or "Administrador").strip() or "Administrador"
+    # Admin puede poner cualquier autor; usuarios usan su propio nombre
+    default_author = (current_user.get("display") or current_user.get("name")) \
+                     if current_user else "Administrador"
+    author   = (data.get("author")  or default_author).strip() or default_author
     featured = bool(data.get("featured"))
     tags     = [t.strip() for t in (data.get("tags") or "").split(",") if t.strip()]
-    init     = "".join(w[0].upper() for w in author.split()[:2])
+    init     = (current_user.get("init") if current_user
+                else "".join(w[0].upper() for w in author.split()[:2]))
     read_t   = max(1, len(content.split()) // 200)
     art = Article(
         category  = category,
