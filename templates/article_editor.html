@@ -185,12 +185,61 @@
 <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 
 <script>
-const ARTICLE_ID    = {{ article.id if article else 'null' }};
+const ARTICLE_ID      = {{ article.id if article else 'null' }};
 const INITIAL_CONTENT = {{ (article.content or '')|tojson if article else '""' }};
-let   currentMode   = 'visual';   // 'visual' | 'markdown'
-let   quill         = null;
+let currentMode = 'visual';
+let quill       = null;
 
-// ── Quill init ────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function isEmptyHtml(html) {
+  return !html || html.trim() === '' || html.trim() === '<p><br></p>';
+}
+
+// Lee el contenido del editor activo (siempre desde el DOM, no desde Delta)
+function getContent() {
+  if (currentMode === 'visual') {
+    const html = quill ? quill.root.innerHTML : '';
+    return isEmptyHtml(html) ? '' : html;
+  }
+  return document.getElementById('artContent').value.trim();
+}
+
+// Inserta HTML en Quill sin depender del Delta interno
+function setQuillHTML(html, append = false) {
+  if (!quill) return;
+  if (append) {
+    quill.root.innerHTML += html;
+  } else {
+    quill.root.innerHTML = html;
+  }
+  // Notifica a Quill que el DOM cambió (necesario para el historial de deshacer)
+  quill.emitter.emit('editor-change', 'text-change', null, null, 'user');
+}
+
+// Llama a /api/preview-md y devuelve HTML; lanza Error si falla
+async function mdToHtml(text) {
+  const r = await fetch('/api/preview-md', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!r.ok) throw new Error('Error del servidor');
+  const data = await r.json();
+  if (!data.html) throw new Error('Respuesta vacía');
+  return data.html;
+}
+
+function updateWordCount() {
+  const text = currentMode === 'visual'
+    ? (quill ? quill.getText() : '')
+    : document.getElementById('artContent').value;
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  const mins  = Math.max(1, Math.round(words / 200));
+  document.getElementById('wordCount').textContent = `${words.toLocaleString()} palabras`;
+  document.getElementById('readTime').textContent  = mins;
+}
+
+// ── Inicialización Quill ──────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   quill = new Quill('#quillEditor', {
     theme: 'snow',
@@ -206,60 +255,41 @@ window.addEventListener('DOMContentLoaded', () => {
     },
   });
 
-  // Adaptar colores al tema oscuro del blog
-  const editor = document.querySelector('.ql-editor');
-  if (editor) editor.style.color = 'var(--text)';
-
-  // Cargar contenido existente
+  // Cargar contenido existente al editar
   if (INITIAL_CONTENT) {
     if (INITIAL_CONTENT.trim().startsWith('<')) {
-      quill.root.innerHTML = INITIAL_CONTENT;   // HTML (guardado visual)
+      quill.root.innerHTML = INITIAL_CONTENT;
     } else {
-      // Markdown → texto plano en Quill (usuario podrá ver y editar)
-      quill.setText(INITIAL_CONTENT);
+      // Markdown guardado: convertir a HTML en el servidor antes de mostrar
+      mdToHtml(INITIAL_CONTENT)
+        .then(html => { quill.root.innerHTML = html; })
+        .catch(() => { quill.setText(INITIAL_CONTENT); });
     }
   }
 
-  // Contador de palabras
   quill.on('text-change', updateWordCount);
   document.getElementById('artContent').addEventListener('input', updateWordCount);
-  updateWordCount();
-
-  // Ocultar referencia Markdown por defecto
   document.getElementById('mdHelpBlock').style.display = 'none';
+  updateWordCount();
 });
 
-function updateWordCount() {
-  const text = currentMode === 'visual'
-    ? (quill ? quill.getText() : '')
-    : document.getElementById('artContent').value;
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  const mins  = Math.max(1, Math.round(words / 200));
-  document.getElementById('wordCount').textContent = `${words.toLocaleString()} palabras`;
-  document.getElementById('readTime').textContent  = mins;
-}
-
-// ── Modo visual / markdown ────────────────────────────────────────────────────
+// ── Toggle modo visual / markdown ─────────────────────────────────────────────
 function setMode(mode) {
   if (mode === currentMode) return;
-
   if (mode === 'markdown') {
-    // Pasar HTML de Quill → textarea (como texto plano para editar)
-    const html = quill.root.innerHTML.trim();
-    const plain = html === '<p><br></p>' ? '' : html;
-    document.getElementById('artContent').value = plain;
-    document.getElementById('quillEditor').style.display = 'none';
-    document.getElementById('artContent').style.display  = '';
-    document.getElementById('mdHelpBlock').style.display = '';
+    const html = quill ? quill.root.innerHTML : '';
+    document.getElementById('artContent').value = isEmptyHtml(html) ? '' : html;
+    document.getElementById('quillEditor').style.display  = 'none';
+    document.getElementById('artContent').style.display   = '';
+    document.getElementById('mdHelpBlock').style.display  = '';
     document.getElementById('modeVisual').className   = 'btn-ghost   btn-sm';
     document.getElementById('modeMarkdown').className = 'btn-primary btn-sm';
   } else {
-    // Pasar textarea → Quill
     const raw = document.getElementById('artContent').value;
-    quill.root.innerHTML = raw || '';
-    document.getElementById('quillEditor').style.display = '';
-    document.getElementById('artContent').style.display  = 'none';
-    document.getElementById('mdHelpBlock').style.display = 'none';
+    if (quill) quill.root.innerHTML = raw || '';
+    document.getElementById('quillEditor').style.display  = '';
+    document.getElementById('artContent').style.display   = 'none';
+    document.getElementById('mdHelpBlock').style.display  = 'none';
     document.getElementById('modeVisual').className   = 'btn-primary btn-sm';
     document.getElementById('modeMarkdown').className = 'btn-ghost   btn-sm';
   }
@@ -279,35 +309,12 @@ function switchTab(tab) {
 
 async function loadPreview() {
   const content = getContent();
-  const box     = document.getElementById('previewContent');
+  const box = document.getElementById('previewContent');
+  if (!content) { box.innerHTML = '<em style="color:var(--text3)">Sin contenido aún.</em>'; return; }
   box.innerHTML = '<em style="color:var(--text3)">Renderizando…</em>';
-  // Si es HTML (modo visual), mostrarlo directamente
-  if (content.trim().startsWith('<') && content.trim() !== '<p><br></p>') {
-    box.innerHTML = content;
-    return;
-  }
-  try {
-    const r    = await fetch('/api/preview-md', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: content }),
-    });
-    const data = await r.json();
-    box.innerHTML = data.html || '<em style="color:var(--text3)">Sin contenido aún.</em>';
-  } catch {
-    box.innerHTML = '<em style="color:var(--accent)">Error al cargar vista previa.</em>';
-  }
-}
-
-function getContent() {
-  if (currentMode === 'visual') {
-    if (!quill) return '';
-    // Quill getText() para detectar si hay contenido real
-    const text = quill.getText().trim();
-    if (!text) return '';
-    return quill.root.innerHTML;
-  }
-  return document.getElementById('artContent').value.trim();
+  if (content.trim().startsWith('<')) { box.innerHTML = content; return; }
+  try { box.innerHTML = await mdToHtml(content); }
+  catch { box.innerHTML = '<em style="color:var(--accent)">Error al renderizar.</em>'; }
 }
 
 // ── Guardar ───────────────────────────────────────────────────────────────────
@@ -321,23 +328,19 @@ async function saveArticle() {
   if (!excerpt) { errEl.textContent = 'El extracto es obligatorio'; return; }
   if (!content) { errEl.textContent = 'El contenido no puede estar vacío'; return; }
 
-  const payload = {
-    title, excerpt, content,
-    category: document.getElementById('artCategory').value,
-    author:   document.getElementById('artAuthor').value.trim(),
-    tags:     document.getElementById('artTags').value,
-    featured: false,
-  };
-
   const url = ARTICLE_ID ? `/articles/${ARTICLE_ID}/edit` : '/articles/new';
   const btn = event.target;
   btn.disabled = true; btn.textContent = 'Guardando…';
-
   try {
-    const r    = await fetch(url, {
+    const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        title, excerpt, content, featured: false,
+        category: document.getElementById('artCategory').value,
+        author:   document.getElementById('artAuthor').value.trim(),
+        tags:     document.getElementById('artTags').value,
+      }),
     });
     const data = await r.json();
     if (data.ok) {
@@ -347,13 +350,10 @@ async function saveArticle() {
       errEl.textContent = data.error || 'Error al guardar';
     }
   } catch { errEl.textContent = 'Error de conexión'; }
-  finally {
-    btn.disabled = false;
-    btn.textContent = ARTICLE_ID ? '💾 Guardar cambios' : '🚀 Publicar artículo';
-  }
+  finally { btn.disabled = false; btn.textContent = ARTICLE_ID ? '💾 Guardar cambios' : '🚀 Publicar artículo'; }
 }
 
-// ── PDF import ────────────────────────────────────────────────────────────────
+// ── PDF: tabs ─────────────────────────────────────────────────────────────────
 function switchPdfTab(tab) {
   const isUrl = tab === 'url';
   document.getElementById('pdfPanelUrl').style.display  = isUrl ? '' : 'none';
@@ -367,100 +367,96 @@ function switchPdfTab(tab) {
 function _showPdfResult(data) {
   const status = document.getElementById('pdfStatus');
   if (!data.ok) { status.style.color = 'var(--accent)'; status.textContent = data.error || 'Error'; return; }
+  const words = data.text.trim().split(/\s+/).filter(Boolean).length;
   status.style.color = 'var(--text3)';
-  status.textContent = `✓ Texto extraído (${data.text.split(/\s+/).length.toLocaleString()} palabras)`;
+  status.textContent = `✓ ${words.toLocaleString()} palabras extraídas`;
   document.getElementById('pdfExtracted').value = data.text;
+  document.getElementById('pdfExtracted').dataset.isHtml = 'false';
   document.getElementById('pdfPreview').style.display = '';
 }
 
+// ── PDF: extraer desde URL ────────────────────────────────────────────────────
 async function extractPdfUrl() {
-  const url    = document.getElementById('pdfUrl').value.trim();
+  const url = document.getElementById('pdfUrl').value.trim();
   const status = document.getElementById('pdfStatus');
   if (!url) { status.textContent = 'Ingresa una URL'; return; }
-  status.style.color = 'var(--text3)';
-  status.textContent = 'Descargando y extrayendo…';
+  status.style.color = 'var(--text3)'; status.textContent = 'Descargando…';
   document.getElementById('pdfPreview').style.display = 'none';
-  try {
-    const r = await fetch('/api/extract-pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
-    _showPdfResult(await r.json());
-  } catch { status.style.color = 'var(--accent)'; status.textContent = 'Error de conexión'; }
+  try { _showPdfResult(await (await fetch('/api/extract-pdf', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }) })).json()); }
+  catch { status.style.color = 'var(--accent)'; status.textContent = 'Error de conexión'; }
 }
 
+// ── PDF: extraer desde archivo ────────────────────────────────────────────────
 async function extractPdfFile() {
   const fileInput = document.getElementById('pdfFile');
   const status    = document.getElementById('pdfStatus');
   if (!fileInput.files.length) { status.textContent = 'Selecciona un archivo PDF'; return; }
-  status.style.color = 'var(--text3)';
-  status.textContent = 'Procesando PDF…';
+  status.style.color = 'var(--text3)'; status.textContent = 'Procesando PDF…';
   document.getElementById('pdfPreview').style.display = 'none';
   const form = new FormData();
   form.append('pdf', fileInput.files[0]);
-  try {
-    const r = await fetch('/api/extract-pdf', { method: 'POST', body: form });
-    _showPdfResult(await r.json());
-  } catch { status.style.color = 'var(--accent)'; status.textContent = 'Error de conexión'; }
+  try { _showPdfResult(await (await fetch('/api/extract-pdf', { method: 'POST', body: form })).json()); }
+  catch { status.style.color = 'var(--accent)'; status.textContent = 'Error de conexión'; }
 }
 
+// ── PDF: formatear con IA (devuelve Markdown, luego convierte a HTML) ─────────
 async function formatWithAI() {
   const extracted = document.getElementById('pdfExtracted');
-  const btn       = document.getElementById('btnFormatAI');
-  const status    = document.getElementById('pdfStatus');
+  const btn    = document.getElementById('btnFormatAI');
+  const status = document.getElementById('pdfStatus');
   if (!extracted.value.trim()) { status.textContent = 'No hay texto para formatear'; return; }
   btn.disabled = true; btn.textContent = '✦ Formateando…';
   status.style.color = 'var(--text3)';
-  status.textContent = 'Claude está estructurando el texto en Markdown…';
+  status.textContent = 'Claude está estructurando el contenido…';
   try {
-    const r    = await fetch('/api/format-md', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const r = await fetch('/api/format-md', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: extracted.value }),
     });
     const data = await r.json();
-    if (data.ok) {
-      extracted.value = data.text;
-      status.textContent = '✓ Texto formateado en Markdown por IA';
-      showToast('Formato aplicado ✓');
-    } else {
-      status.style.color = 'var(--accent)';
-      status.textContent = data.error || 'Error al formatear';
-    }
-  } catch { status.style.color = 'var(--accent)'; status.textContent = 'Error de conexión'; }
+    if (!data.ok) { status.style.color = 'var(--accent)'; status.textContent = data.error || 'Error'; return; }
+    // Convertir Markdown → HTML inmediatamente
+    const html = await mdToHtml(data.text);
+    extracted.value = html;
+    extracted.dataset.isHtml = 'true';
+    status.textContent = '✓ Contenido formateado y listo para insertar';
+    showToast('Formato aplicado ✓');
+  } catch(e) { status.style.color = 'var(--accent)'; status.textContent = 'Error: ' + e.message; }
   finally { btn.disabled = false; btn.textContent = '✦ Formatear con IA'; }
 }
 
+// ── PDF: insertar en el editor ────────────────────────────────────────────────
 async function usePdfText(mode) {
-  const extracted = document.getElementById('pdfExtracted').value;
+  const textarea = document.getElementById('pdfExtracted');
+  const status   = document.getElementById('pdfStatus');
+  let content    = textarea.value;
+  const isHtml   = textarea.dataset.isHtml === 'true';
 
-  if (currentMode === 'visual' && quill) {
-    // Convertir a HTML antes de insertar en el editor visual
-    let html = extracted;
-    try {
-      const r    = await fetch('/api/preview-md', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: extracted }),
-      });
-      const data = await r.json();
-      if (data.html) html = data.html;
-    } catch { /* si falla la conversión, usamos texto plano */ }
-
-    if (mode === 'replace') {
-      // Reemplaza todo el contenido del editor
-      quill.clipboard.dangerouslyPasteHTML(html);
-    } else {
-      // Agrega al final del contenido existente
-      const len = quill.getLength();
-      quill.clipboard.dangerouslyPasteHTML(len - 1, '<p>' + html + '</p>');
+  if (currentMode === 'visual') {
+    // Si no es HTML todavía, convertir ahora
+    if (!isHtml) {
+      status.style.color = 'var(--text3)';
+      status.textContent = 'Convirtiendo a formato visual…';
+      try {
+        content = await mdToHtml(content);
+      } catch(e) {
+        status.style.color = 'var(--accent)';
+        status.textContent = 'Error al convertir. Intenta "Formatear con IA" primero.';
+        return;
+      }
     }
+    setQuillHTML(mode === 'replace' ? content : quill.root.innerHTML + content);
+    status.textContent = '✓ Contenido cargado en el editor';
   } else {
-    // Modo Markdown: insertar el texto directamente
+    // Modo Markdown: insertar texto plano (si ya es HTML, avisamos)
+    if (isHtml) {
+      status.style.color = 'var(--text3)';
+      status.textContent = 'Nota: el contenido ya fue convertido a HTML por la IA.';
+    }
     const area = document.getElementById('artContent');
-    area.value = mode === 'replace' ? extracted
-                                    : area.value + (area.value ? '\n\n' : '') + extracted;
+    area.value = mode === 'replace' ? content : area.value + (area.value ? '\n\n' : '') + content;
     area.dispatchEvent(new Event('input'));
   }
   updateWordCount();
