@@ -429,16 +429,30 @@ async function formatWithAI() {
   finally { btn.disabled = false; btn.textContent = '✦ Formatear con IA'; }
 }
 
-function usePdfText(mode) {
+async function usePdfText(mode) {
   const extracted = document.getElementById('pdfExtracted').value;
+
   if (currentMode === 'visual' && quill) {
+    // Convertir a HTML antes de insertar en el editor visual
+    let html = extracted;
+    try {
+      const r    = await fetch('/api/preview-md', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: extracted }),
+      });
+      const data = await r.json();
+      if (data.html) html = data.html;
+    } catch { /* si falla la conversión, usamos texto plano */ }
+
     if (mode === 'replace') {
-      quill.setText(extracted);
+      quill.root.innerHTML = html;
     } else {
-      const len = quill.getLength();
-      quill.insertText(len - 1, '\n\n' + extracted);
+      quill.root.innerHTML += html;
     }
+    quill.update();
   } else {
+    // Modo Markdown: insertar el texto directamente
     const area = document.getElementById('artContent');
     area.value = mode === 'replace' ? extracted
                                     : area.value + (area.value ? '\n\n' : '') + extracted;

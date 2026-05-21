@@ -491,13 +491,36 @@ def extract_pdf():
     import pdfplumber, io, tempfile, os as _os
 
     def _pdf_to_text(file_bytes: bytes) -> str:
-        text_parts = []
-        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-            for page in pdf.pages:
+        # Intento 1: pdfplumber (mejor calidad de extracción)
+        try:
+            text_parts = []
+            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                for page in pdf.pages:
+                    t = page.extract_text()
+                    if t:
+                        text_parts.append(t.strip())
+            if text_parts:
+                return "\n\n".join(text_parts)
+        except Exception:
+            pass
+
+        # Intento 2: pypdf (más tolerante con PDFs mal formados)
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(file_bytes), strict=False)
+            text_parts = []
+            for page in reader.pages:
                 t = page.extract_text()
-                if t:
+                if t and t.strip():
                     text_parts.append(t.strip())
-        return "\n\n".join(text_parts)
+            if text_parts:
+                return "\n\n".join(text_parts)
+        except Exception:
+            pass
+
+        raise ValueError("No se pudo extraer texto del PDF. "
+                         "Puede estar dañado, protegido con contraseña, "
+                         "o contener solo imágenes escaneadas.")
 
     # ── Desde URL ────────────────────────────────────────────────────────────
     if request.is_json:
