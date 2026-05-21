@@ -301,8 +301,11 @@ async function loadPreview() {
 
 function getContent() {
   if (currentMode === 'visual') {
-    const html = quill ? quill.root.innerHTML.trim() : '';
-    return html === '<p><br></p>' ? '' : html;
+    if (!quill) return '';
+    // Quill getText() para detectar si hay contenido real
+    const text = quill.getText().trim();
+    if (!text) return '';
+    return quill.root.innerHTML;
   }
   return document.getElementById('artContent').value.trim();
 }
@@ -446,11 +449,13 @@ async function usePdfText(mode) {
     } catch { /* si falla la conversión, usamos texto plano */ }
 
     if (mode === 'replace') {
-      quill.root.innerHTML = html;
+      // Reemplaza todo el contenido del editor
+      quill.clipboard.dangerouslyPasteHTML(html);
     } else {
-      quill.root.innerHTML += html;
+      // Agrega al final del contenido existente
+      const len = quill.getLength();
+      quill.clipboard.dangerouslyPasteHTML(len - 1, '<p>' + html + '</p>');
     }
-    quill.update();
   } else {
     // Modo Markdown: insertar el texto directamente
     const area = document.getElementById('artContent');
