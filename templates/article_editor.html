@@ -427,40 +427,67 @@ async function formatWithAI() {
   finally { btn.disabled = false; btn.textContent = '✦ Formatear con IA'; }
 }
 
-// ── PDF: insertar en el editor ────────────────────────────────────────────────
+// ── PDF: insertar en el editor (auto-formatea si no se hizo antes) ────────────
 async function usePdfText(mode) {
   const textarea = document.getElementById('pdfExtracted');
   const status   = document.getElementById('pdfStatus');
-  let content    = textarea.value;
-  const isHtml   = textarea.dataset.isHtml === 'true';
+  const btnR     = document.querySelector('[onclick*="replace"]');
+  const btnA     = document.querySelector('[onclick*="append"]');
+  let content    = textarea.value.trim();
+  let isHtml     = textarea.dataset.isHtml === 'true';
+
+  if (!content) { status.textContent = 'No hay texto extraído'; return; }
+
+  // Si todavía no se formateó con IA, hacerlo automáticamente ahora
+  if (!isHtml) {
+    status.style.color = 'var(--text3)';
+    if (btnR) btnR.disabled = true;
+    if (btnA) btnA.disabled = true;
+
+    // Paso 1: Claude formatea el texto
+    status.textContent = '⏳ Formateando con IA…';
+    try {
+      const r1   = await fetch('/api/format-md', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: content }),
+      });
+      const d1 = await r1.json();
+      if (!d1.ok) throw new Error(d1.error || 'Error en formato IA');
+      content = d1.text;
+    } catch(e) {
+      // Si la IA falla (sin API key, etc.), igual convertir texto plano a HTML
+      status.textContent = '⚠️ IA no disponible, convirtiendo texto plano…';
+    }
+
+    // Paso 2: Markdown (o texto plano) → HTML
+    status.textContent = '⏳ Preparando para el editor…';
+    try {
+      content = await mdToHtml(content);
+      isHtml  = true;
+    } catch(e) {
+      status.style.color = 'var(--accent)';
+      status.textContent = 'Error al preparar el contenido: ' + e.message;
+      if (btnR) btnR.disabled = false;
+      if (btnA) btnA.disabled = false;
+      return;
+    }
+    if (btnR) btnR.disabled = false;
+    if (btnA) btnA.disabled = false;
+  }
 
   if (currentMode === 'visual') {
-    // Si no es HTML todavía, convertir ahora
-    if (!isHtml) {
-      status.style.color = 'var(--text3)';
-      status.textContent = 'Convirtiendo a formato visual…';
-      try {
-        content = await mdToHtml(content);
-      } catch(e) {
-        status.style.color = 'var(--accent)';
-        status.textContent = 'Error al convertir. Intenta "Formatear con IA" primero.';
-        return;
-      }
-    }
     setQuillHTML(mode === 'replace' ? content : quill.root.innerHTML + content);
-    status.textContent = '✓ Contenido cargado en el editor';
   } else {
-    // Modo Markdown: insertar texto plano (si ya es HTML, avisamos)
-    if (isHtml) {
-      status.style.color = 'var(--text3)';
-      status.textContent = 'Nota: el contenido ya fue convertido a HTML por la IA.';
-    }
     const area = document.getElementById('artContent');
     area.value = mode === 'replace' ? content : area.value + (area.value ? '\n\n' : '') + content;
     area.dispatchEvent(new Event('input'));
   }
+
+  textarea.dataset.isHtml = 'true';
+  status.style.color = 'var(--text3)';
+  status.textContent = '✓ Contenido cargado en el editor';
   updateWordCount();
-  showToast('Contenido cargado en el editor ✓');
+  showToast('Contenido cargado ✓');
   document.getElementById('pdfSection').open = false;
 }
 </script>
