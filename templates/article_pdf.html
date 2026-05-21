@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{{ article.title }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 2.5cm 2.2cm 2.5cm 2.2cm;
+    @bottom-center {
+      content: "IDEA Blog  ·  " string(doctitle) "  ·  Página " counter(page) " de " counter(pages);
+      font-size: 9px;
+      color: #888;
+    }
+  }
+
+  body {
+    font-family: "Georgia", "Times New Roman", serif;
+    font-size: 11pt;
+    line-height: 1.75;
+    color: #1a1a1a;
+    margin: 0;
+  }
+
+  /* ── Cabecera del documento ── */
+  .doc-header {
+    border-bottom: 2px solid #3b2f7f;
+    padding-bottom: 18px;
+    margin-bottom: 24px;
+  }
+
+  .doc-logo {
+    display: inline-block;
+    background: #3b2f7f;
+    color: #fff;
+    font-size: 10pt;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    margin-bottom: 14px;
+  }
+
+  .doc-category {
+    font-size: 9pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #555;
+    margin-bottom: 8px;
+  }
+
+  h1.doc-title {
+    font-size: 20pt;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #111;
+    margin: 0 0 12px 0;
+    string-set: doctitle content();
+  }
+
+  .doc-excerpt {
+    font-size: 11.5pt;
+    font-style: italic;
+    color: #444;
+    margin: 0 0 14px 0;
+    padding-left: 12px;
+    border-left: 3px solid #3b2f7f;
+  }
+
+  .doc-meta {
+    font-size: 9pt;
+    color: #666;
+  }
+
+  .doc-tags {
+    margin-top: 8px;
+    font-size: 8.5pt;
+    color: #888;
+  }
+
+  /* ── Contenido ── */
+  .doc-body { margin-top: 20px; }
+
+  .doc-body h1, .doc-body h2, .doc-body h3 {
+    font-family: "Arial", sans-serif;
+    color: #2d2268;
+    margin-top: 22px;
+    margin-bottom: 6px;
+    page-break-after: avoid;
+  }
+  .doc-body h1 { font-size: 16pt; }
+  .doc-body h2 { font-size: 14pt; }
+  .doc-body h3 { font-size: 12pt; }
+
+  .doc-body p {
+    margin: 0 0 10px 0;
+    text-align: justify;
+  }
+
+  .doc-body ul, .doc-body ol {
+    margin: 6px 0 10px 24px;
+    padding: 0;
+  }
+
+  .doc-body li { margin-bottom: 4px; }
+
+  .doc-body strong { color: #111; }
+
+  .doc-body blockquote {
+    margin: 12px 0;
+    padding: 8px 14px;
+    border-left: 3px solid #3b2f7f;
+    color: #444;
+    font-style: italic;
+    background: #f8f7ff;
+  }
+
+  .doc-body pre, .doc-body code {
+    font-family: "Courier New", monospace;
+    font-size: 9pt;
+    background: #f4f4f4;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+  }
+
+  .doc-body pre {
+    padding: 10px 12px;
+    margin: 10px 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    page-break-inside: avoid;
+  }
+
+  .doc-body code { padding: 1px 4px; }
+
+  .doc-body table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+    margin: 12px 0;
+    page-break-inside: avoid;
+  }
+
+  .doc-body th {
+    background: #3b2f7f;
+    color: #fff;
+    padding: 6px 10px;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  .doc-body td {
+    padding: 5px 10px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  .doc-body tr:nth-child(even) td { background: #f9f9ff; }
+
+  /* ── Pie de artículo ── */
+  .doc-footer {
+    margin-top: 32px;
+    padding-top: 14px;
+    border-top: 1px solid #ccc;
+    font-size: 8.5pt;
+    color: #888;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <div class="doc-logo">IDEA Blog</div>
+  <div class="doc-category">{{ cat.emoji }} {{ cat.label }}</div>
+  <h1 class="doc-title">{{ article.title }}</h1>
+  <p class="doc-excerpt">{{ article.excerpt }}</p>
+  <div class="doc-meta">
+    <strong>{{ article.author }}</strong>
+    &nbsp;·&nbsp; {{ article.read_time }} min de lectura
+    &nbsp;·&nbsp; {{ article.created_at.strftime('%d %b %Y') }}
+  </div>
+  {% if article.tags %}
+  <div class="doc-tags">
+    Etiquetas: {{ article.tags | join(' · ') }}
+  </div>
+  {% endif %}
+</div>
+
+<div class="doc-body">
+  {{ content_html | safe }}
+</div>
+
+<div class="doc-footer">
+  Descargado desde IDEA Blog (Innovation · Development · Education · AI)
+  &nbsp;·&nbsp; sflores@alumni.stanford.edu
+</div>
+
+</body>
+</html>

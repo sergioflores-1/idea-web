@@ -188,16 +188,43 @@ def download_article(article_id):
     art = Article.query.get(article_id)
     if not art:
         return redirect(url_for("articles"))
-    html     = render_template("article_download.html",
-                               article=art,
-                               content_html=render_md(art.content),
-                               get_cat=get_cat)
-    filename = f"idea-{art.title[:40].lower().replace(' ', '-')}.html"
-    return Response(
-        html,
-        mimetype="text/html",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+
+    import re, unicodedata
+
+    content_html = render_md(art.content)
+    cat          = get_cat(art.category)
+
+    # Nombre de archivo seguro
+    safe = unicodedata.normalize("NFKD", art.title[:50])
+    safe = re.sub(r"[^\w\s-]", "", safe).strip().lower()
+    safe = re.sub(r"[\s]+", "-", safe)
+
+    try:
+        from weasyprint import HTML as WP_HTML
+        html_str  = render_template("article_pdf.html",
+                                    article=art,
+                                    content_html=content_html,
+                                    cat=cat)
+        pdf_bytes = WP_HTML(string=html_str,
+                            base_url=request.host_url).write_pdf()
+        return Response(
+            pdf_bytes,
+            mimetype="application/pdf",
+            headers={"Content-Disposition":
+                     f'attachment; filename="idea-{safe}.pdf"'},
+        )
+    except (ImportError, OSError):
+        # Fallback: HTML standalone (entorno sin GTK, ej. Windows dev)
+        html_str = render_template("article_download.html",
+                                   article=art,
+                                   content_html=content_html,
+                                   get_cat=get_cat)
+        return Response(
+            html_str,
+            mimetype="text/html",
+            headers={"Content-Disposition":
+                     f'attachment; filename="idea-{safe}.html"'},
+        )
 
 
 @app.route("/forums")
