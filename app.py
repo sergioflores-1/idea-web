@@ -478,15 +478,49 @@ def extract_pdf():
         if not url:
             return jsonify({"error": "URL vacía"}), 400
         try:
-            resp = requests.get(url, timeout=30,
-                                headers={"User-Agent": "Mozilla/5.0"})
+            # Headers que imitan un navegador real para evitar bloqueos 403
+            browser_headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                "Accept": "application/pdf,application/octet-stream,*/*;q=0.9",
+                "Accept-Language": "es-419,es;q=0.9,en;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Referer": url,
+            }
+            session_req = requests.Session()
+            session_req.headers.update(browser_headers)
+            resp = session_req.get(url, timeout=60, allow_redirects=True,
+                                   stream=True)
             resp.raise_for_status()
-            if "pdf" not in resp.headers.get("Content-Type", "").lower() \
-                    and not url.lower().endswith(".pdf"):
-                return jsonify({"error": "La URL no parece ser un PDF"}), 400
-            text = _pdf_to_text(resp.content)
+            content_type = resp.headers.get("Content-Type", "").lower()
+            if "pdf" not in content_type and not url.lower().split("?")[0].endswith(".pdf"):
+                return jsonify({"error":
+                    f"La URL no devuelve un PDF (tipo: {content_type or 'desconocido'})"}), 400
+            file_bytes = resp.content
+            text = _pdf_to_text(file_bytes)
+            if not text.strip():
+                return jsonify({"error": "El PDF no contiene texto extraíble (puede ser escaneado/imagen)"}), 400
             return jsonify({"ok": True, "text": text,
                             "pages": len(text.split("\n\n"))})
+        except requests.exceptions.HTTPError as e:
+            code = e.response.status_code if e.response is not None else "?"
+            msgs = {
+                403: "Acceso denegado (403) — el sitio bloquea descargas automáticas. Descarga el PDF manualmente y súbelo con 'Desde archivo'.",
+                404: "Archivo no encontrado (404). Verifica la URL.",
+                401: "El PDF requiere autenticación (401).",
+                429: "Demasiadas solicitudes (429). Intenta en unos minutos.",
+            }
+            return jsonify({"error": msgs.get(code, f"Error HTTP {code}: {e}")}), 400
+        except requests.exceptions.Timeout:
+            return jsonify({"error": "Tiempo de espera agotado. El servidor tardó demasiado. Intenta con 'Desde archivo'."}), 400
         except requests.exceptions.RequestException as e:
             return jsonify({"error": f"No se pudo descargar: {e}"}), 400
         except Exception as e:
