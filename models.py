@@ -53,6 +53,8 @@ class Article(db.Model):
     comments_count  = db.Column(db.Integer,     default=0)
     _tags           = db.Column("tags", db.Text, default="")
     created_at      = db.Column(db.DateTime,    default=datetime.utcnow)
+    is_pdf          = db.Column(db.Boolean,     default=False)
+    pdf_data        = db.Column(db.LargeBinary, nullable=True)
 
     @property
     def tags(self):

@@ -25,6 +25,7 @@ if DATABASE_URL.startswith("postgres://"):
 
 app.config["SQLALCHEMY_DATABASE_URI"]        = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["MAX_CONTENT_LENGTH"]             = 25 * 1024 * 1024  # 25 MB max upload
 db.init_app(app)
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -62,6 +63,25 @@ def render_md(text: str) -> str:
     return md.markdown(stripped, extensions=["fenced_code", "tables", "nl2br"])
 
 # ── DB initialisation & seed ───────────────────────────────────────────────────
+
+def _ensure_pdf_columns():
+    """Add is_pdf / pdf_data columns to existing article tables (safe migration)."""
+    from sqlalchemy import text, inspect as sa_inspect
+    insp = sa_inspect(db.engine)
+    if not insp.has_table("articles"):
+        return  # fresh DB — create_all will handle it
+    existing = {col["name"] for col in insp.get_columns("articles")}
+    is_pg = "postgresql" in str(db.engine.url)
+    stmts = []
+    if "is_pdf" not in existing:
+        stmts.append(f"ALTER TABLE articles ADD COLUMN is_pdf BOOLEAN DEFAULT {'FALSE' if is_pg else '0'}")
+    if "pdf_data" not in existing:
+        stmts.append(f"ALTER TABLE articles ADD COLUMN pdf_data {'BYTEA' if is_pg else 'BLOB'}")
+    if stmts:
+        with db.engine.begin() as conn:
+            for stmt in stmts:
+                conn.execute(text(stmt))
+
 
 def _seed_if_empty():
     """Populate tables on first deploy; skip if data already exists."""
@@ -124,6 +144,7 @@ def _seed_if_empty():
 
 with app.app_context():
     db.create_all()
+    _ensure_pdf_columns()
     _seed_if_empty()
 
 # ── Context processor ──────────────────────────────────────────────────────────
@@ -181,6 +202,16 @@ def article_detail(article_id):
                            content_html=render_md(art.content))
 
 
+@app.route("/articles/<int:article_id>/view-pdf")
+def view_pdf(article_id):
+    """Serve the raw PDF bytes stored for a PDF article."""
+    art = Article.query.get(article_id)
+    if not art or not art.is_pdf or not art.pdf_data:
+        abort(404)
+    return Response(art.pdf_data, mimetype="application/pdf",
+                    headers={"Content-Disposition": "inline"})
+
+
 @app.route("/articles/<int:article_id>/download")
 def download_article(article_id):
     if not session.get("user"):
@@ -191,13 +222,22 @@ def download_article(article_id):
 
     import re, unicodedata
 
-    content_html = render_md(art.content)
-    cat          = get_cat(art.category)
-
     # Nombre de archivo seguro
     safe = unicodedata.normalize("NFKD", art.title[:50])
     safe = re.sub(r"[^\w\s-]", "", safe).strip().lower()
     safe = re.sub(r"[\s]+", "-", safe)
+
+    # Artículo PDF nativo → servir el PDF original directamente
+    if art.is_pdf and art.pdf_data:
+        return Response(
+            art.pdf_data,
+            mimetype="application/pdf",
+            headers={"Content-Disposition":
+                     f'attachment; filename="idea-{safe}.pdf"'},
+        )
+
+    content_html = render_md(art.content)
+    cat          = get_cat(art.category)
 
     try:
         from weasyprint import HTML as WP_HTML
@@ -587,6 +627,70 @@ def extract_pdf():
         return jsonify({"ok": True, "text": text})
     except Exception as e:
         return jsonify({"error": f"Error al leer PDF: {e}"}), 500
+
+# ── Subir PDF directamente como artículo ──────────────────────────────────────
+
+@app.route("/api/upload-pdf-article", methods=["POST"])
+def upload_pdf_article():
+    if not session.get("user"):
+        return jsonify({"error": "Debes iniciar sesión"}), 401
+
+    file = request.files.get("pdf")
+    if not file or not file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "Se requiere un archivo PDF"}), 400
+
+    pdf_bytes = file.read()
+    if len(pdf_bytes) < 4:
+        return jsonify({"error": "Archivo PDF inválido"}), 400
+
+    title    = request.form.get("title", "").strip()
+    excerpt  = request.form.get("excerpt", "").strip()
+    category = request.form.get("category", "ia")
+    tags_str = request.form.get("tags", "")
+    art_id   = request.form.get("article_id", "").strip()
+
+    if not title:
+        return jsonify({"error": "El título es obligatorio"}), 400
+    if not excerpt:
+        return jsonify({"error": "El extracto es obligatorio"}), 400
+
+    u      = session["user"]
+    author = u.get("display") or u.get("name")
+    init   = u.get("init", "")
+    tags   = [t.strip() for t in tags_str.split(",") if t.strip()]
+
+    if art_id:
+        art = Article.query.get(int(art_id))
+        if not art:
+            return jsonify({"error": "Artículo no encontrado"}), 404
+        if not is_admin() and art.author != u.get("name") and art.author != u.get("display"):
+            return jsonify({"error": "Sin permiso"}), 403
+        art.title    = title
+        art.excerpt  = excerpt
+        art.category = category
+        art.is_pdf   = True
+        art.pdf_data = pdf_bytes
+        art.content  = ""
+        art.tags     = tags
+    else:
+        art = Article(
+            category  = category,
+            featured  = False,
+            title     = title,
+            excerpt   = excerpt,
+            content   = "",
+            author    = author,
+            init      = init,
+            read_time = 5,
+            is_pdf    = True,
+            pdf_data  = pdf_bytes,
+        )
+        art.tags = tags
+        db.session.add(art)
+
+    db.session.commit()
+    return jsonify({"ok": True, "id": art.id})
+
 
 # ── Comentarios ────────────────────────────────────────────────────────────────
 

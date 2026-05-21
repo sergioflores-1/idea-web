@@ -50,9 +50,22 @@
 
   <hr class="sep">
 
+  {% if article.is_pdf %}
+  <div class="article-body">
+    <embed src="{{ url_for('view_pdf', article_id=article.id) }}"
+           type="application/pdf" width="100%"
+           style="height:80vh;min-height:500px;border-radius:8px;border:1px solid var(--border)">
+    <p style="color:var(--text3);font-size:12px;margin-top:8px;text-align:center">
+      ¿El PDF no carga? →
+      <a href="{{ url_for('download_article', article_id=article.id) }}"
+         style="color:var(--primary)">Descárgalo aquí</a>
+    </p>
+  </div>
+  {% else %}
   <div class="article-body prose">
     {{ content_html|safe }}
   </div>
+  {% endif %}
 </article>
 
 <div class="card" style="margin-top:24px;padding:16px">

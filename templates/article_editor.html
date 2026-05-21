@@ -161,6 +161,28 @@
       </div>
     </details>
 
+    <!-- Subir PDF directamente como artículo -->
+    <details class="markdown-help" style="margin-top:10px" id="pdfNativeSection">
+      <summary style="color:var(--primary);font-weight:600">📄 Publicar PDF directamente (sin extracción)</summary>
+      <div class="markdown-help-body" style="padding:14px">
+        <p style="font-size:13px;color:var(--text2);margin:0 0 12px">
+          El PDF se guarda tal cual y los lectores lo ven en el visor integrado del navegador.
+          Completa el título y el extracto arriba antes de publicar.
+        </p>
+        {% if article and article.is_pdf %}
+        <div style="padding:8px 12px;background:var(--surface2);border-radius:6px;font-size:13px;margin-bottom:12px;color:var(--text2)">
+          ✅ Este artículo ya tiene un PDF adjunto. Sube uno nuevo para reemplazarlo.
+        </div>
+        {% endif %}
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="nativePdfFile" accept=".pdf"
+                 style="flex:1;font-size:13px;color:var(--text2);min-width:0">
+          <button class="btn-primary btn-sm" onclick="publishAsPdf()">🚀 Publicar como PDF</button>
+        </div>
+        <div id="nativePdfStatus" style="margin-top:10px;font-size:13px;color:var(--text3)"></div>
+      </div>
+    </details>
+
     <!-- Referencia Markdown (solo visible en modo markdown) -->
     <details class="markdown-help" style="margin-top:6px" id="mdHelpBlock">
       <summary>📖 Referencia rápida de Markdown</summary>
@@ -489,6 +511,48 @@ async function usePdfText(mode) {
   updateWordCount();
   showToast('Contenido cargado ✓');
   document.getElementById('pdfSection').open = false;
+}
+
+// ── Publicar PDF nativo ───────────────────────────────────────────────────────
+async function publishAsPdf() {
+  const statusEl = document.getElementById('nativePdfStatus');
+  const fileInput = document.getElementById('nativePdfFile');
+  const title   = document.getElementById('artTitle').value.trim();
+  const excerpt = document.getElementById('artExcerpt').value.trim();
+
+  statusEl.style.color = 'var(--accent)';
+  if (!title)   { statusEl.textContent = '⚠ Completa el título antes de publicar'; return; }
+  if (!excerpt) { statusEl.textContent = '⚠ Completa el extracto antes de publicar'; return; }
+  if (!fileInput.files.length) { statusEl.textContent = '⚠ Selecciona un archivo PDF'; return; }
+
+  const file = fileInput.files[0];
+  if (file.size > 20 * 1024 * 1024) { statusEl.textContent = '⚠ El PDF no puede superar 20 MB'; return; }
+
+  statusEl.style.color = 'var(--text3)';
+  statusEl.textContent = '⏳ Subiendo PDF…';
+
+  const form = new FormData();
+  form.append('pdf',      file);
+  form.append('title',    title);
+  form.append('excerpt',  excerpt);
+  form.append('category', document.getElementById('artCategory').value);
+  form.append('tags',     document.getElementById('artTags').value);
+  if (ARTICLE_ID) form.append('article_id', ARTICLE_ID);
+
+  try {
+    const r    = await fetch('/api/upload-pdf-article', { method: 'POST', body: form });
+    const data = await r.json();
+    if (data.ok) {
+      showToast('PDF publicado ✓');
+      setTimeout(() => window.location.href = `/articles/${data.id}`, 900);
+    } else {
+      statusEl.style.color = 'var(--accent)';
+      statusEl.textContent = data.error || 'Error al subir';
+    }
+  } catch(e) {
+    statusEl.style.color = 'var(--accent)';
+    statusEl.textContent = 'Error de conexión: ' + e.message;
+  }
 }
 </script>
 {% endblock %}
