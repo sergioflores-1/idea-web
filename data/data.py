@@ -8,6 +8,7 @@ CATEGORIES = [
     {"id": "innovation", "label": "Innovación",              "emoji": "💡", "color": "#b45309", "bg": "#fef3c7"},
     {"id": "devops",     "label": "DevOps & Cloud",          "emoji": "☁️", "color": "#0f766e", "bg": "#ccfbf1"},
     {"id": "security",   "label": "Ciberseguridad",          "emoji": "🔐", "color": "#b91c1c", "bg": "#fee2e2"},
+    {"id": "energia",    "label": "Energía",                 "emoji": "⚡", "color": "#c2410c", "bg": "#ffedd5"},
 ]
 
 AI_MODULES = [
