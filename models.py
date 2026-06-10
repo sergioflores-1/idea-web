@@ -98,6 +98,38 @@ class Forum(db.Model):
         return len(self.replies)
 
 
+class Event(db.Model):
+    __tablename__ = "events"
+    id          = db.Column(db.Integer,     primary_key=True)
+    date_label  = db.Column(db.String(20),  nullable=False)   # "22 Ene"
+    title       = db.Column(db.String(500), nullable=False)
+    type        = db.Column(db.String(50),  default="Online")
+    time        = db.Column(db.String(50),  default="")
+    location    = db.Column(db.String(200), default="")
+    description = db.Column(db.Text,        default="")
+    registered  = db.Column(db.Integer,     default=0)
+    capacity    = db.Column(db.Integer,     default=0)
+    created_at  = db.Column(db.DateTime,    default=datetime.utcnow)
+
+
+class Panel(db.Model):
+    __tablename__ = "panels"
+    id          = db.Column(db.String(50),  primary_key=True)  # slug: "ia", "dev"
+    emoji       = db.Column(db.String(10),  default="📌")
+    name        = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text,        default="")
+    members     = db.Column(db.Integer,     default=0)
+    posts       = db.Column(db.Integer,     default=0)
+    color       = db.Column(db.String(20),  default="#3b82f6")
+    activity    = db.Column(db.String(100), default="")
+    _tags       = db.Column("tags", db.Text, default="")
+    created_at  = db.Column(db.DateTime,    default=datetime.utcnow)
+
+    @property
+    def tags(self):
+        return [t.strip() for t in self._tags.split(",") if t.strip()] if self._tags else []
+
+
 class Comment(db.Model):
     __tablename__ = "comments"
     id            = db.Column(db.Integer, primary_key=True)

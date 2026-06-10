@@ -90,6 +90,74 @@
   </table>
 </div>
 
+<!-- ── Eventos ────────────────────────────────────────────────────────────── -->
+<div class="card" style="margin-bottom:16px">
+  <div class="admin-section-head">
+    <span>📅 Eventos</span>
+    <button class="btn-primary btn-sm" onclick="openModal('newEventModal')">+ Nuevo evento</button>
+  </div>
+  {% if events %}
+  <table class="admin-table">
+    <thead>
+      <tr><th>Fecha</th><th>Título</th><th>Tipo</th><th>Lugar</th><th>Inscritos</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for ev in events %}
+      <tr id="event-row-{{ ev.id }}">
+        <td style="color:var(--accent);font-weight:700;white-space:nowrap">{{ ev.date_label }}</td>
+        <td style="font-weight:600">{{ ev.title }}</td>
+        <td><span style="background:var(--bg-surf);padding:2px 8px;border-radius:4px;font-size:11px">{{ ev.type }}</span></td>
+        <td style="color:var(--text2)">{{ ev.location }}</td>
+        <td>{{ ev.registered }}{% if ev.capacity %}/{{ ev.capacity }}{% endif %}</td>
+        <td>
+          <button class="btn-delete" onclick="adminDelete('event', {{ ev.id }}, this)">🗑</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">
+    No hay eventos. Haz clic en "+ Nuevo evento" para agregar.
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── Paneles ────────────────────────────────────────────────────────────── -->
+<div class="card" style="margin-bottom:16px">
+  <div class="admin-section-head">
+    <span>🗂 Paneles temáticos</span>
+    <button class="btn-primary btn-sm" onclick="openModal('newPanelModal')">+ Nuevo panel</button>
+  </div>
+  {% if panels %}
+  <table class="admin-table">
+    <thead>
+      <tr><th>ID</th><th>Panel</th><th>Miembros</th><th>Actividad</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for p in panels %}
+      <tr id="panel-row-{{ p.id }}">
+        <td style="color:var(--text3);font-size:12px">{{ p.id }}</td>
+        <td>
+          <span style="margin-right:6px">{{ p.emoji }}</span>
+          <strong>{{ p.name }}</strong>
+        </td>
+        <td>{{ p.members }}</td>
+        <td style="color:var(--text2);font-size:12px">{{ p.activity }}</td>
+        <td>
+          <button class="btn-delete" onclick="adminDelete('panel', '{{ p.id }}', this)">🗑</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">
+    No hay paneles. Haz clic en "+ Nuevo panel" para agregar.
+  </div>
+  {% endif %}
+</div>
+
 <!-- ── Miembros ───────────────────────────────────────────────────────────── -->
 <div class="card">
   <div class="admin-section-head">
@@ -124,6 +192,101 @@
   </table>
 </div>
 
+<!-- Modal: nuevo evento -->
+<div id="newEventModal" class="modal-overlay">
+  <div class="modal modal-wrap" style="width:480px;max-width:95vw">
+    <button class="modal-close" onclick="closeModal('newEventModal')">×</button>
+    <h2 style="font-size:18px;margin-bottom:16px">📅 Nuevo evento</h2>
+    <div class="form-group">
+      <label>Título *</label>
+      <input type="text" id="evTitle" class="editor-input" placeholder="Webinar: Prompt Engineering">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label>Fecha *</label>
+        <input type="text" id="evDate" class="editor-input" placeholder="22 Ene">
+      </div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <select id="evType" class="editor-input">
+          <option>Online</option>
+          <option>Presencial</option>
+          <option>Híbrido</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label>Hora</label>
+        <input type="text" id="evTime" class="editor-input" placeholder="18:00 ECT">
+      </div>
+      <div class="form-group">
+        <label>Capacidad</label>
+        <input type="number" id="evCapacity" class="editor-input" placeholder="100" min="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Lugar / URL</label>
+      <input type="text" id="evLocation" class="editor-input" placeholder="Zoom · meet.google.com/...">
+    </div>
+    <div class="form-group">
+      <label>Descripción</label>
+      <textarea id="evDesc" class="editor-input" rows="2" placeholder="Breve descripción del evento"></textarea>
+    </div>
+    <div id="evError" style="color:var(--accent);font-size:13px;min-height:18px"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn-primary" style="flex:1" onclick="saveEvent()">Guardar evento</button>
+      <button class="btn-ghost" onclick="closeModal('newEventModal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: nuevo panel -->
+<div id="newPanelModal" class="modal-overlay">
+  <div class="modal modal-wrap" style="width:480px;max-width:95vw">
+    <button class="modal-close" onclick="closeModal('newPanelModal')">×</button>
+    <h2 style="font-size:18px;margin-bottom:16px">🗂 Nuevo panel</h2>
+    <div style="display:grid;grid-template-columns:80px 1fr;gap:10px">
+      <div class="form-group">
+        <label>Emoji</label>
+        <input type="text" id="pnEmoji" class="editor-input" placeholder="🤖" maxlength="4">
+      </div>
+      <div class="form-group">
+        <label>ID único * <span style="color:var(--text3);font-weight:400;font-size:11px">(sin espacios)</span></label>
+        <input type="text" id="pnId" class="editor-input" placeholder="ia, dev, energia"
+               oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9-]/g,'-')">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Nombre *</label>
+      <input type="text" id="pnName" class="editor-input" placeholder="IA & Machine Learning">
+    </div>
+    <div class="form-group">
+      <label>Descripción</label>
+      <textarea id="pnDesc" class="editor-input" rows="2" placeholder="Descripción del panel temático"></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label>Actividad</label>
+        <input type="text" id="pnActivity" class="editor-input" placeholder="Alta actividad">
+      </div>
+      <div class="form-group">
+        <label>Color</label>
+        <input type="color" id="pnColor" value="#3b82f6" style="width:100%;height:38px;border:1px solid var(--border);border-radius:7px;cursor:pointer">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Tags <span style="color:var(--text3);font-weight:400">(separados por coma)</span></label>
+      <input type="text" id="pnTags" class="editor-input" placeholder="Python, LLMs, NLP">
+    </div>
+    <div id="pnError" style="color:var(--accent);font-size:13px;min-height:18px"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn-primary" style="flex:1" onclick="savePanel()">Guardar panel</button>
+      <button class="btn-ghost" onclick="closeModal('newPanelModal')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal de confirmación -->
 <div id="confirmModal" class="modal-overlay">
   <div class="modal modal-wrap" style="text-align:center;max-width:380px">
@@ -144,36 +307,77 @@
 let pendingDelete = null;
 
 async function adminDelete(type, id, btn) {
-  const labels = { article: 'artículo', forum: 'pregunta de foro', member: 'miembro' };
+  const labels = { article: 'artículo', forum: 'pregunta de foro', member: 'miembro', event: 'evento', panel: 'panel' };
   document.getElementById('confirmText').textContent =
-    `Estás a punto de eliminar este ${labels[type]}. Esta acción no se puede deshacer.`;
+    `Estás a punto de eliminar este ${labels[type] || type}. Esta acción no se puede deshacer.`;
   pendingDelete = { type, id, btn };
   openModal('confirmModal');
 }
 
 document.getElementById('confirmBtn').addEventListener('click', async () => {
   if (!pendingDelete) return;
-  const { type, id, btn } = pendingDelete;
+  const { type, id } = pendingDelete;
   closeModal('confirmModal');
-
   try {
     const r = await fetch(`/admin/delete/${type}/${id}`, { method: 'POST' });
     const data = await r.json();
     if (data.ok) {
       const row = document.getElementById(`${type}-row-${id}`);
-      if (row) {
-        row.style.opacity = '0';
-        row.style.transition = 'opacity .3s';
-        setTimeout(() => row.remove(), 300);
-      }
+      if (row) { row.style.opacity = '0'; row.style.transition = 'opacity .3s'; setTimeout(() => row.remove(), 300); }
       showToast('Eliminado correctamente ✓');
-    } else {
-      showToast('Error al eliminar');
-    }
-  } catch {
-    showToast('Error de conexión');
-  }
+    } else { showToast('Error al eliminar'); }
+  } catch { showToast('Error de conexión'); }
   pendingDelete = null;
 });
+
+async function saveEvent() {
+  const err = document.getElementById('evError');
+  err.textContent = '';
+  const title = document.getElementById('evTitle').value.trim();
+  const date  = document.getElementById('evDate').value.trim();
+  if (!title) { err.textContent = 'El título es obligatorio'; return; }
+  if (!date)  { err.textContent = 'La fecha es obligatoria'; return; }
+  try {
+    const r = await fetch('/admin/events/new', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title, date_label: date,
+        type:        document.getElementById('evType').value,
+        time:        document.getElementById('evTime').value.trim(),
+        location:    document.getElementById('evLocation').value.trim(),
+        description: document.getElementById('evDesc').value.trim(),
+        capacity:    parseInt(document.getElementById('evCapacity').value) || 0,
+      }),
+    });
+    const data = await r.json();
+    if (data.ok) { showToast('Evento creado ✓'); setTimeout(() => location.reload(), 800); }
+    else { err.textContent = data.error || 'Error al guardar'; }
+  } catch { err.textContent = 'Error de conexión'; }
+}
+
+async function savePanel() {
+  const err = document.getElementById('pnError');
+  err.textContent = '';
+  const id   = document.getElementById('pnId').value.trim();
+  const name = document.getElementById('pnName').value.trim();
+  if (!id)   { err.textContent = 'El ID es obligatorio'; return; }
+  if (!name) { err.textContent = 'El nombre es obligatorio'; return; }
+  try {
+    const r = await fetch('/admin/panels/new', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id, name,
+        emoji:       document.getElementById('pnEmoji').value.trim() || '📌',
+        description: document.getElementById('pnDesc').value.trim(),
+        activity:    document.getElementById('pnActivity').value.trim(),
+        color:       document.getElementById('pnColor').value,
+        tags:        document.getElementById('pnTags').value,
+      }),
+    });
+    const data = await r.json();
+    if (data.ok) { showToast('Panel creado ✓'); setTimeout(() => location.reload(), 800); }
+    else { err.textContent = data.error || 'Error al guardar'; }
+  } catch { err.textContent = 'Error de conexión'; }
+}
 </script>
 {% endblock %}

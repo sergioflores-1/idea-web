@@ -5,10 +5,9 @@ import markdown as md
 import bcrypt
 
 from data.data import (SAMPLE_ARTICLES, SAMPLE_FORUMS, SAMPLE_MEMBERS,
-                       SAMPLE_PANELS, SAMPLE_EVENTS, CATEGORIES,
-                       AI_MODULES, AI_PROMPTS, CONDUCT_RULES, TRENDING_TAGS,
-                       CLAUDE_API_URL, CLAUDE_MODEL)
-from models import db, User, Article, Forum, Comment
+                       CATEGORIES, AI_MODULES, AI_PROMPTS, CONDUCT_RULES,
+                       TRENDING_TAGS, CLAUDE_API_URL, CLAUDE_MODEL)
+from models import db, User, Article, Forum, Comment, Event, Panel
 
 # ── App & DB setup ─────────────────────────────────────────────────────────────
 
@@ -295,12 +294,14 @@ def forum_detail(forum_id):
 
 @app.route("/panels")
 def panels():
-    return render_template("panels.html", panels=SAMPLE_PANELS)
+    ps = Panel.query.order_by(Panel.created_at).all()
+    return render_template("panels.html", panels=ps)
 
 
 @app.route("/events")
 def events():
-    return render_template("events.html", events=SAMPLE_EVENTS)
+    evs = Event.query.order_by(Event.created_at).all()
+    return render_template("events.html", events=evs)
 
 
 @app.route("/members")
@@ -446,20 +447,24 @@ def claude_proxy():
 @app.route("/api/join-panel", methods=["POST"])
 def join_panel():
     panel_id = (request.get_json() or {}).get("panel_id")
-    panel = next((p for p in SAMPLE_PANELS if p["id"] == panel_id), None)
+    panel = Panel.query.get(panel_id)
     if not panel:
         return jsonify({"error": "Panel no encontrado"}), 404
-    return jsonify({"ok": True, "message": f"Te uniste a '{panel['name']}' ✓"})
+    panel.members += 1
+    db.session.commit()
+    return jsonify({"ok": True, "message": f"Te uniste a '{panel.name}' ✓"})
 
 
 @app.route("/api/register-event", methods=["POST"])
 def register_event():
     event_id = (request.get_json() or {}).get("event_id")
-    event = next((e for e in SAMPLE_EVENTS if e["id"] == event_id), None)
+    event = Event.query.get(event_id)
     if not event:
         return jsonify({"error": "Evento no encontrado"}), 404
-    return jsonify({"ok": True,
-                    "message": f"Registrado en '{event['title']}' ✓"})
+    if event.capacity and event.registered < event.capacity:
+        event.registered += 1
+        db.session.commit()
+    return jsonify({"ok": True, "message": f"Registrado en '{event.title}' ✓"})
 
 # ── Preview Markdown ───────────────────────────────────────────────────────────
 
@@ -883,10 +888,89 @@ def admin_panel():
             "badge":    "Admin" if u.is_admin else "Member",
         })
 
+    evs    = Event.query.order_by(Event.created_at).all()
+    pnls   = Panel.query.order_by(Panel.created_at).all()
+
     return render_template("admin.html",
                            articles=arts,
                            forums=fors,
-                           members=member_rows)
+                           members=member_rows,
+                           events=evs,
+                           panels=pnls)
+
+
+@app.route("/admin/events/new", methods=["POST"])
+def admin_new_event():
+    if not is_admin():
+        abort(403)
+    data = request.get_json() or {}
+    title      = (data.get("title") or "").strip()
+    date_label = (data.get("date_label") or "").strip()
+    if not title or not date_label:
+        return jsonify({"error": "Título y fecha son obligatorios"}), 400
+    ev = Event(
+        date_label  = date_label,
+        title       = title,
+        type        = (data.get("type") or "Online").strip(),
+        time        = (data.get("time") or "").strip(),
+        location    = (data.get("location") or "").strip(),
+        description = (data.get("description") or "").strip(),
+        registered  = 0,
+        capacity    = int(data.get("capacity") or 0),
+    )
+    db.session.add(ev)
+    db.session.commit()
+    return jsonify({"ok": True, "id": ev.id})
+
+
+@app.route("/admin/delete/event/<int:event_id>", methods=["POST"])
+def admin_delete_event(event_id):
+    if not is_admin():
+        abort(403)
+    ev = Event.query.get(event_id)
+    if ev:
+        db.session.delete(ev)
+        db.session.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/panels/new", methods=["POST"])
+def admin_new_panel():
+    if not is_admin():
+        abort(403)
+    data = request.get_json() or {}
+    panel_id = (data.get("id") or "").strip().lower().replace(" ", "-")
+    name     = (data.get("name") or "").strip()
+    if not panel_id or not name:
+        return jsonify({"error": "ID y nombre son obligatorios"}), 400
+    if Panel.query.get(panel_id):
+        return jsonify({"error": f"Ya existe un panel con ID '{panel_id}'"}), 409
+    tags_csv = ",".join(t.strip() for t in (data.get("tags") or "").split(",") if t.strip())
+    p = Panel(
+        id          = panel_id,
+        emoji       = (data.get("emoji") or "📌").strip(),
+        name        = name,
+        description = (data.get("description") or "").strip(),
+        members     = int(data.get("members") or 0),
+        posts       = 0,
+        color       = (data.get("color") or "#3b82f6").strip(),
+        activity    = (data.get("activity") or "").strip(),
+        _tags       = tags_csv,
+    )
+    db.session.add(p)
+    db.session.commit()
+    return jsonify({"ok": True, "id": p.id})
+
+
+@app.route("/admin/delete/panel/<panel_id>", methods=["POST"])
+def admin_delete_panel(panel_id):
+    if not is_admin():
+        abort(403)
+    p = Panel.query.get(panel_id)
+    if p:
+        db.session.delete(p)
+        db.session.commit()
+    return jsonify({"ok": True})
 
 
 @app.route("/admin/delete/article/<int:article_id>", methods=["POST"])
