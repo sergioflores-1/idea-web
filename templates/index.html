@@ -3,6 +3,7 @@
 {% block content %}
 
 <!-- Hero -->
+{% if featured %}
 <div class="hero">
   <div class="hero-label">✦ ARTÍCULO DESTACADO</div>
   <div class="hero-title">{{ featured.title }}</div>
@@ -16,6 +17,18 @@
   <a href="{{ url_for('article_detail', article_id=featured.id) }}"
      class="btn-primary">Leer artículo →</a>
 </div>
+{% else %}
+<div class="hero" style="text-align:center;padding:48px 24px">
+  <div class="hero-label">✦ IDEA Blog</div>
+  <div class="hero-title" style="font-size:22px">Innovation · Development · Education · AI</div>
+  <div class="hero-excerpt" style="margin:12px auto;max-width:480px">
+    La comunidad tecnológica latinoamericana. Pronto habrá contenido disponible.
+  </div>
+  {% if is_admin %}
+  <a href="{{ url_for('admin_new_article') }}" class="btn-primary">+ Publicar primer artículo</a>
+  {% endif %}
+</div>
+{% endif %}
 
 <!-- Filtros -->
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
